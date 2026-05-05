@@ -16,17 +16,58 @@ class FarmerListScreen extends StatefulWidget {
 
 class _FarmerListScreenState extends State<FarmerListScreen> {
   List<FarmerModel> _farmers = [];
+  List<FarmerModel> _filteredFarmers = [];
   bool _isLoading = true;
   bool _hasError = false;
   String _errorMessage = '';
+
+  final TextEditingController _searchController = TextEditingController();
+
+   String _searchQuery = '';
+  
 
   @override
   void initState() {
     super.initState();
     _fetchFarmers();
+_searchController.addListener(_onSearchChanged);
+    
   }
 
-  Future<void> _fetchFarmers() async {
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // Add this method to handle search
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text;
+      _filterFarmers();
+    });
+  }
+
+  // Add this method to filter farmers
+  void _filterFarmers() {
+    if (_searchQuery.isEmpty) {
+      _filteredFarmers = List.from(_farmers);
+    } else {
+      _filteredFarmers = _farmers.where((farmer) {
+        final query = _searchQuery.toLowerCase();
+        return farmer.name.toLowerCase().contains(query) ||
+            farmer.mobile.contains(query) ||
+            (farmer.village?.toLowerCase().contains(query) ?? false) ||
+           (farmer.city?.toLowerCase().contains(query) ?? false) ||
+           (farmer.village?.toLowerCase().contains(query) ?? false);
+      }).toList();
+    }
+  }
+
+
+ Future<void> _fetchFarmers() async {
     setState(() {
       _isLoading = true;
       _hasError = false;
@@ -50,6 +91,9 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
               .map((json) => FarmerModel.fromJson(json))
               .toList();
         }
+        
+        // Initialize filtered farmers
+        _filterFarmers();
       }
     } catch (e) {
       setState(() {
@@ -118,24 +162,55 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(lang.t('farmers_list')),
+       title: _searchQuery.isEmpty
+    ? Text(lang.t('farmers_list'))
+    : TextField(
+        controller: _searchController,
+        autofocus: true,
+        decoration: InputDecoration(
+          hintText: lang.t('search_farmers'),
+          hintStyle: const TextStyle(color: Colors.grey),
+          border: InputBorder.none,
+          filled: true,
+          fillColor: Colors.white.withOpacity(0.1),
+        ),
+        style: const TextStyle(color: Colors.white),
+      ),
         backgroundColor: AppColors.surface,
         elevation: 0,
         centerTitle: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              // TODO: Implement search
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: () {
-              // TODO: Implement filter
-            },
-          ),
-        ],
+       actions: [
+  if (_searchQuery.isEmpty)
+    IconButton(
+      icon: const Icon(Icons.search),
+      onPressed: () {
+        // Show search field
+        setState(() {
+          _searchQuery = '';
+          _searchController.clear();
+        });
+        // Focus on search field by rebuilding with a different appBar
+      },
+    )
+  else
+    IconButton(
+      icon: const Icon(Icons.close),
+      onPressed: () {
+        // Clear search
+        setState(() {
+          _searchController.clear();
+          _searchQuery = '';
+        });
+      },
+    ),
+  if (_searchQuery.isEmpty)
+    IconButton(
+      icon: const Icon(Icons.filter_list),
+      onPressed: () {
+        // TODO: Implement filter
+      },
+    ),
+],
       ),
       body: _buildBody(lang),
       floatingActionButton: FloatingActionButton.extended(
@@ -190,51 +265,70 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
         ),
       );
     }
-
-    if (_farmers.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.people_outline, size: 64, color: AppColors.textHint),
-            const SizedBox(height: 16),
-            Text(
-              lang.t('no_farmers_found'),
-              style: const TextStyle(
-                fontSize: 16,
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const FarmerRegistrationScreen(),
-                  ),
-                );
-                if (result == true) _fetchFarmers();
-              },
-              icon: const Icon(Icons.add),
-              label: Text(lang.t('add_first_farmer')),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
+if (_filteredFarmers.isEmpty) {
+  return Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          _searchQuery.isEmpty ? Icons.people_outline : Icons.search_off,
+          size: 64,
+          color: AppColors.textHint,
         ),
-      );
-    }
+        const SizedBox(height: 16),
+        Text(
+          _searchQuery.isEmpty 
+              ? lang.t('no_farmers_found')
+              : 'No matching farmers found', // Or add to translations
+          style: const TextStyle(
+            fontSize: 16,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        if (_searchQuery.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _searchController.clear();
+                _searchQuery = '';
+              });
+            },
+            child: const Text('Clear search'),
+          ),
+        ],
+        if (_searchQuery.isEmpty) ...[
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const FarmerRegistrationScreen(),
+                ),
+              );
+              if (result == true) _fetchFarmers();
+            },
+            icon: const Icon(Icons.add),
+            label: Text(lang.t('add_first_farmer')),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
+}
 
     return RefreshIndicator(
       onRefresh: _fetchFarmers,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(12),
-        itemCount: _farmers.length,
-        itemBuilder: (context, index) {
-          final farmer = _farmers[index];
+     child: ListView.builder(
+  padding: const EdgeInsets.all(12),
+  itemCount: _filteredFarmers.length,
+  itemBuilder: (context, index) {
+    final farmer = _filteredFarmers[index];
           return _FarmerCard(
             farmer: farmer,
             onDelete: () => _deleteFarmer(farmer.id, farmer.name),

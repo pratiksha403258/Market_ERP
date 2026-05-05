@@ -128,6 +128,20 @@ class LanguageProvider extends ChangeNotifier {
     'name_too_short': 'Name too short',
     'enter_valid_mobile': 'Enter valid 10-digit number',
     'field_required': 'This field is required',
+
+
+    'add_farmer': 'Add New Farmer',
+  // ... existing translations ...
+  'no_farmers_found': 'No farmers found',
+  'add_first_farmer': 'Add Your First Farmer',
+  
+  // Add these new translations:
+  'search_farmers': 'Search farmers...',
+  'no_matching_farmers': 'No matching farmers found',
+  'clear_search': 'Clear search',
+  
+  // Success/Error messages
+  'success': 'Success',
   };
 
   // Marathi translations
@@ -199,5 +213,19 @@ class LanguageProvider extends ChangeNotifier {
     'name_too_short': 'नाव खूप लहान आहे',
     'enter_valid_mobile': 'वैध 10-अंकी क्रमांक प्रविष्ट करा',
     'field_required': 'हे फील्ड आवश्यक आहे',
+
+      // Farmer Registration Screen
+  'add_farmer': 'नवीन शेतकरी जोडा',
+  // ... existing translations ...
+  'no_farmers_found': 'कोणतेही शेतकरी सापडले नाहीत',
+  'add_first_farmer': 'तुमचा पहिला शेतकरी जोडा',
+  
+  // Add these new translations:
+  'search_farmers': 'शेतकरी शोधा...',
+  'no_matching_farmers': 'जुळणारा कोणताही शेतकरी सापडला नाही',
+  'clear_search': 'शोध साफ करा',
+  
+  // Success/Error messages
+  'success': 'यश',
   };
 }

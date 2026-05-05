@@ -6,8 +6,8 @@ class AppConstants {
   AppConstants._();
 
   // ── API ──────────────────────────────────────────────────────
-  static const String baseUrl = 'http://192.168.1.8:5000/api';
-
+  //static const String baseUrl = 'http://192.168.1.8:5001/api';
+      static const String baseUrl = 'http://192.168.1.15:5001/api';                         
   // ── Secure Storage Keys ───────────────────────────────────────
   static const String keyAccessToken  = 'access_token';
   static const String keyRefreshToken = 'refresh_token';
@@ -41,4 +41,6 @@ class ApiRoutes {
   static const String farmers       = '/farmers';
   static String farmerById(String id) => '/farmers/$id';
   static String farmerLedger(String id) => '/farmers/$id/ledger';
+
+   static const String purchases = '/purchases';
 }

@@ -92,6 +92,9 @@ class FarmerModel {
 
   bool get hasPendingDues => pendingDues > 0;
   bool get hasAdvanceBalance => advanceBalance > 0;
+
+
+
 }
 
 // Response wrapper for paginated farmer list

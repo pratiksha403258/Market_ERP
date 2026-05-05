@@ -227,6 +227,7 @@ class _SplashScreenState extends State<SplashScreen>
                           // App Name
                           const Text(
                             'Market ERP',
+                            //agri broker
                             style: TextStyle(
                               fontSize: 34,
                               fontWeight: FontWeight.w700,
