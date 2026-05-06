@@ -300,12 +300,19 @@ class AuthService {
       final userData     = data['user']         as Map<String, dynamic>;
       final user         = UserModel.fromJson(userData);
 
+
+ print('🔐 User ID from API: ${user.id}');  // ✅ Debug print
+    print('🔐 User Name from API: ${user.name}');  
+
       // Persist tokens + basic user info securely
       await _storage.write(key: AppConstants.keyAccessToken,  value: accessToken);
       await _storage.write(key: AppConstants.keyRefreshToken, value: refreshToken);
       await _storage.write(key: AppConstants.keyUserId,       value: user.id);
       await _storage.write(key: AppConstants.keyUserRole,     value: user.role);
       await _storage.write(key: AppConstants.keyUserName,     value: user.name);
+
+      final savedUserId = await _storage.read(key: AppConstants.keyUserId);
+    print('🔐 Saved User ID to storage: $savedUserId');  // ✅ Debug print
 
       return AuthResult.success(user: user);
     } on DioException catch (e) {

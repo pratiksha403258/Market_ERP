@@ -566,63 +566,72 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _loadDashboard();
   }
+ Future<void> _loadDashboard() async {
+  setState(() { 
+    _loading = true; 
+    _hasError = false; 
+  });
+  
+  try {
+    print('🔄 Loading dashboard data...');
+    
+    // Today's date range
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayEnd = todayStart.add(const Duration(days: 1));
+    final todayStartStr = todayStart.toIso8601String();
+    final todayEndStr = todayEnd.toIso8601String();
 
-  Future<void> _loadDashboard() async {
-    setState(() { _loading = true; _hasError = false; });
+    // Week start (Monday)
+    final weekStart = todayStart.subtract(Duration(days: now.weekday - 1));
+
+    // ── Fetch all required data ──
+    
+    int farmerCount = 0;
+    double todayKg = 0;
+    double todaySales = 0;
+    double pendingDues = 0;
+    List<Map<String, dynamic>> recentPurchases = [];
+    List<double> weeklyNorm = [0, 0, 0, 0, 0, 0, 0];
+    
+    // 1. Fetch farmers
     try {
-      // Today's date range
-      final now = DateTime.now();
-      final todayStart = DateTime(now.year, now.month, now.day);
-      final todayEnd = todayStart.add(const Duration(days: 1));
-      final todayStartStr = todayStart.toIso8601String();
-      final todayEndStr = todayEnd.toIso8601String();
-
-      // Week start (Monday)
-      final weekStart = todayStart.subtract(Duration(days: now.weekday - 1));
-
-      // ── Run all API calls concurrently ────────────────────
-      final results = await Future.wait([
-        // 0 — Farmer count
-        DioClient.instance.dio.get(ApiRoutes.farmers,
-            queryParameters: {'limit': 1, 'page': 1}),
-
-        // 1 — Today's purchases (for arrivals + sales)
-        DioClient.instance.dio.get(ApiRoutes.purchases, queryParameters: {
-          'startDate': todayStartStr,
-          'endDate':   todayEndStr,
-          'limit':     100,
-        }),
-
-        // 2 — Recent 3 purchases (any date)
-        DioClient.instance.dio.get(ApiRoutes.purchases,
-            queryParameters: {'limit': 3, 'sortOrder': 'desc'}),
-
-        // 3 — Purchase summary for pending dues
-        DioClient.instance.dio.get(ApiRoutes.purchases),
-
-        // 4 — Weekly purchases (last 7 days)
-        DioClient.instance.dio.get(ApiRoutes.purchases, queryParameters: {
-          'startDate': weekStart.toIso8601String(),
-          'endDate':   todayEndStr,
-          'limit':     500,
-        }),
-      ]);
-
-      // ── Parse farmer count ────────────────────────────────
-      int farmerCount = 0;
-      final farmerRes = results[0].data;
-      if (farmerRes is Map) {
-        farmerCount = (farmerRes['total'] as num?)?.toInt() ??
-            (farmerRes['pagination']?['total'] as num?)?.toInt() ?? 0;
+      final farmerRes = await DioClient.instance.dio.get(ApiRoutes.farmers);
+      final farmerData = farmerRes.data;
+      print('✅ Farmers API success');
+      
+      if (farmerData is List) {
+        farmerCount = farmerData.length;
+      } else if (farmerData is Map) {
+        if (farmerData['data'] is List) {
+          farmerCount = (farmerData['data'] as List).length;
+        } else if (farmerData['farmers'] is List) {
+          farmerCount = (farmerData['farmers'] as List).length;
+        } else if (farmerData['total'] != null) {
+          farmerCount = (farmerData['total'] as num).toInt();
+        }
       }
-
-      // ── Parse today's purchases ───────────────────────────
-      double todayKg = 0;
-      double todaySales = 0;
-      final todayRes = results[1].data;
-      List todayList = _extractList(todayRes);
+      print('✅ Total Farmers: $farmerCount');
+    } catch (e) {
+      print('❌ Farmers API failed: $e');
+    }
+    
+    // 2. Fetch today's purchases
+    try {
+      final todayRes = await DioClient.instance.dio.get(
+        ApiRoutes.purchases, 
+        queryParameters: {
+          'startDate': todayStartStr,
+          'endDate': todayEndStr,
+          'limit': 500,
+        }
+      );
+      print('✅ Today\'s purchases API success');
+      
+      final todayList = _extractList(todayRes.data);
+      print('📊 Today\'s purchases count: ${todayList.length}');
+      
       for (final p in todayList) {
-        // Sum billed qty from all lines (kg type)
         final lines = p['lines'] as List? ?? [];
         for (final l in lines) {
           if ((l['pricingType'] ?? '') == 'kg') {
@@ -631,11 +640,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
         todaySales += (p['finalPayable'] as num?)?.toDouble() ?? 0;
       }
-
-      // ── Parse recent 3 purchases ──────────────────────────
-      final recentRes = results[2].data;
-      final recentList = _extractList(recentRes).take(3).toList();
-      final recentPurchases = recentList.map((p) {
+    } catch (e) {
+      print('❌ Today\'s purchases API failed: $e');
+    }
+    
+    // 3. Fetch recent purchases
+    try {
+      final recentRes = await DioClient.instance.dio.get(
+        ApiRoutes.purchases,
+        queryParameters: {'limit': 3, 'sortOrder': 'desc'}
+      );
+      print('✅ Recent purchases API success');
+      
+      final recentList = _extractList(recentRes.data).take(3).toList();
+      recentPurchases = recentList.map((p) {
         final lines = p['lines'] as List? ?? [];
         final firstProduct = lines.isNotEmpty
             ? (lines[0]['productName'] ?? 'Product')
@@ -652,21 +670,62 @@ class _DashboardScreenState extends State<DashboardScreen> {
           'receiptNumber': p['receiptNumber'] ?? '',
         };
       }).toList();
-
-      // ── Parse pending dues from summary ───────────────────
-      double pendingDues = 0;
-      final summaryRes = results[3].data;
-      if (summaryRes is Map) {
-        final d = summaryRes['data'];
-        if (d is Map) {
-          pendingDues = (d['totalDue'] as num?)?.toDouble() ?? 0;
+    } catch (e) {
+      print('❌ Recent purchases API failed: $e');
+    }
+    
+    // 4. Calculate pending dues from all purchases (instead of summary endpoint)
+    try {
+      final allPurchasesRes = await DioClient.instance.dio.get(
+        ApiRoutes.purchases,
+        queryParameters: {'limit': 1000}
+      );
+      print('✅ All purchases API success');
+      
+      final purchasesList = _extractList(allPurchasesRes.data);
+      // Calculate total pending dues (amountDue)
+      pendingDues = purchasesList.fold(0.0, (sum, p) => 
+        sum + ((p['amountDue'] as num?)?.toDouble() ?? 0)
+      );
+      print('📊 Total Pending Dues: ₹$pendingDues');
+    } catch (e) {
+      print('❌ All purchases API failed: $e');
+      // If this fails, try calculating from farmers data
+      try {
+        final farmersRes = await DioClient.instance.dio.get(ApiRoutes.farmers);
+        final farmersData = farmersRes.data;
+        List farmersList = [];
+        if (farmersData is List) {
+          farmersList = farmersData;
+        } else if (farmersData is Map && farmersData['data'] is List) {
+          farmersList = farmersData['data'];
+        } else if (farmersData is Map && farmersData['farmers'] is List) {
+          farmersList = farmersData['farmers'];
         }
+        
+        pendingDues = farmersList.fold(0.0, (sum, f) => 
+          sum + ((f['pendingDues'] as num?)?.toDouble() ?? 0)
+        );
+        print('📊 Pending Dues from farmers: ₹$pendingDues');
+      } catch (e2) {
+        print('❌ Farmers pending dues calculation failed: $e2');
       }
-
-      // ── Parse weekly arrivals ─────────────────────────────
-      final weeklyRes = results[4].data;
-      final weeklyList = _extractList(weeklyRes);
-
+    }
+    
+    // 5. Fetch weekly purchases
+    try {
+      final weeklyRes = await DioClient.instance.dio.get(
+        ApiRoutes.purchases,
+        queryParameters: {
+          'startDate': weekStart.toIso8601String(),
+          'endDate': todayEndStr,
+          'limit': 1000,
+        }
+      );
+      print('✅ Weekly purchases API success');
+      
+      final weeklyList = _extractList(weeklyRes.data);
+      
       // Group by day of week (Mon=0 … Sun=6)
       final dayTotals = List<double>.filled(7, 0);
       for (final p in weeklyList) {
@@ -674,32 +733,176 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (dateStr.isEmpty) continue;
         final date = DateTime.tryParse(dateStr.toString());
         if (date == null) continue;
-        final dayIdx = date.weekday - 1; // Mon=0
+        final dayIdx = date.weekday - 1;
         dayTotals[dayIdx] += (p['grossTotal'] as num?)?.toDouble() ?? 0;
       }
-
+      
       // Normalise to 0–1 for bar heights
       final maxDay = dayTotals.reduce((a, b) => a > b ? a : b);
-      final weeklyNorm = maxDay > 0
+      weeklyNorm = maxDay > 0
           ? dayTotals.map((v) => (v / maxDay).clamp(0.1, 1.0)).toList()
           : List<double>.filled(7, 0.1);
-
-      setState(() {
-        _data = _DashboardData(
-          totalFarmers:     farmerCount,
-          todayArrivalKg:   todayKg,
-          todaySalesTotal:  todaySales,
-          totalPendingDues: pendingDues,
-          recentPurchases:  recentPurchases,
-          weeklyArrivals:   weeklyNorm,
-        );
-        _loading = false;
-      });
     } catch (e) {
-      debugPrint('Dashboard load error: $e');
-      setState(() { _loading = false; _hasError = true; });
+      print('❌ Weekly purchases API failed: $e');
     }
+
+    setState(() {
+      _data = _DashboardData(
+        totalFarmers:     farmerCount,
+        todayArrivalKg:   todayKg,
+        todaySalesTotal:  todaySales,
+        totalPendingDues: pendingDues,
+        recentPurchases:  recentPurchases,
+        weeklyArrivals:   weeklyNorm,
+      );
+      _loading = false;
+    });
+    
+    print('✅ Dashboard loaded successfully');
+    print('📊 Farmers: $farmerCount, Today Sales: ₹$todaySales, Pending Dues: ₹$pendingDues');
+    
+  } catch (e) {
+    print('❌ Dashboard load error: $e');
+    setState(() { 
+      _loading = false; 
+      _hasError = true; 
+    });
   }
+}
+
+  // Future<void> _loadDashboard() async {
+  //   setState(() { _loading = true; _hasError = false; });
+  //   try {
+  //     // Today's date range
+  //     final now = DateTime.now();
+  //     final todayStart = DateTime(now.year, now.month, now.day);
+  //     final todayEnd = todayStart.add(const Duration(days: 1));
+  //     final todayStartStr = todayStart.toIso8601String();
+  //     final todayEndStr = todayEnd.toIso8601String();
+
+  //     // Week start (Monday)
+  //     final weekStart = todayStart.subtract(Duration(days: now.weekday - 1));
+
+  //     // ── Run all API calls concurrently ────────────────────
+  //     final results = await Future.wait([
+  //       // 0 — Farmer count
+  //       DioClient.instance.dio.get(ApiRoutes.farmers,
+  //           queryParameters: {'limit': 1, 'page': 1}),
+
+  //       // 1 — Today's purchases (for arrivals + sales)
+  //       DioClient.instance.dio.get(ApiRoutes.purchases, queryParameters: {
+  //         'startDate': todayStartStr,
+  //         'endDate':   todayEndStr,
+  //         'limit':     100,
+  //       }),
+
+  //       // 2 — Recent 3 purchases (any date)
+  //       DioClient.instance.dio.get(ApiRoutes.purchases,
+  //           queryParameters: {'limit': 3, 'sortOrder': 'desc'}),
+
+  //       // 3 — Purchase summary for pending dues
+  //       DioClient.instance.dio.get(ApiRoutes.purchases),
+
+  //       // 4 — Weekly purchases (last 7 days)
+  //       DioClient.instance.dio.get(ApiRoutes.purchases, queryParameters: {
+  //         'startDate': weekStart.toIso8601String(),
+  //         'endDate':   todayEndStr,
+  //         'limit':     500,
+  //       }),
+  //     ]);
+
+  //     // ── Parse farmer count ────────────────────────────────
+  //     int farmerCount = 0;
+  //     final farmerRes = results[0].data;
+  //     if (farmerRes is Map) {
+  //       farmerCount = (farmerRes['total'] as num?)?.toInt() ??
+  //           (farmerRes['pagination']?['total'] as num?)?.toInt() ?? 0;
+  //     }
+
+  //     // ── Parse today's purchases ───────────────────────────
+  //     double todayKg = 0;
+  //     double todaySales = 0;
+  //     final todayRes = results[1].data;
+  //     List todayList = _extractList(todayRes);
+  //     for (final p in todayList) {
+  //       // Sum billed qty from all lines (kg type)
+  //       final lines = p['lines'] as List? ?? [];
+  //       for (final l in lines) {
+  //         if ((l['pricingType'] ?? '') == 'kg') {
+  //           todayKg += (l['billedQty'] as num?)?.toDouble() ?? 0;
+  //         }
+  //       }
+  //       todaySales += (p['finalPayable'] as num?)?.toDouble() ?? 0;
+  //     }
+
+  //     // ── Parse recent 3 purchases ──────────────────────────
+  //     final recentRes = results[2].data;
+  //     final recentList = _extractList(recentRes).take(3).toList();
+  //     final recentPurchases = recentList.map((p) {
+  //       final lines = p['lines'] as List? ?? [];
+  //       final firstProduct = lines.isNotEmpty
+  //           ? (lines[0]['productName'] ?? 'Product')
+  //           : 'Purchase';
+  //       final farmer = p['farmer'];
+  //       final farmerName = farmer is Map
+  //           ? farmer['name'] ?? 'Unknown'
+  //           : 'Unknown';
+  //       return {
+  //         'product': firstProduct,
+  //         'farmer': farmerName,
+  //         'amount': (p['finalPayable'] as num?)?.toDouble() ?? 0,
+  //         'date': p['purchaseDate'] ?? p['createdAt'] ?? '',
+  //         'receiptNumber': p['receiptNumber'] ?? '',
+  //       };
+  //     }).toList();
+
+  //     // ── Parse pending dues from summary ───────────────────
+  //     double pendingDues = 0;
+  //     final summaryRes = results[3].data;
+  //     if (summaryRes is Map) {
+  //       final d = summaryRes['data'];
+  //       if (d is Map) {
+  //         pendingDues = (d['totalDue'] as num?)?.toDouble() ?? 0;
+  //       }
+  //     }
+
+  //     // ── Parse weekly arrivals ─────────────────────────────
+  //     final weeklyRes = results[4].data;
+  //     final weeklyList = _extractList(weeklyRes);
+
+  //     // Group by day of week (Mon=0 … Sun=6)
+  //     final dayTotals = List<double>.filled(7, 0);
+  //     for (final p in weeklyList) {
+  //       final dateStr = p['purchaseDate'] ?? p['createdAt'] ?? '';
+  //       if (dateStr.isEmpty) continue;
+  //       final date = DateTime.tryParse(dateStr.toString());
+  //       if (date == null) continue;
+  //       final dayIdx = date.weekday - 1; // Mon=0
+  //       dayTotals[dayIdx] += (p['grossTotal'] as num?)?.toDouble() ?? 0;
+  //     }
+
+  //     // Normalise to 0–1 for bar heights
+  //     final maxDay = dayTotals.reduce((a, b) => a > b ? a : b);
+  //     final weeklyNorm = maxDay > 0
+  //         ? dayTotals.map((v) => (v / maxDay).clamp(0.1, 1.0)).toList()
+  //         : List<double>.filled(7, 0.1);
+
+  //     setState(() {
+  //       _data = _DashboardData(
+  //         totalFarmers:     farmerCount,
+  //         todayArrivalKg:   todayKg,
+  //         todaySalesTotal:  todaySales,
+  //         totalPendingDues: pendingDues,
+  //         recentPurchases:  recentPurchases,
+  //         weeklyArrivals:   weeklyNorm,
+  //       );
+  //       _loading = false;
+  //     });
+  //   } catch (e) {
+  //     debugPrint('Dashboard load error: $e');
+  //     setState(() { _loading = false; _hasError = true; });
+  //   }
+  // }
 
   List _extractList(dynamic data) {
     if (data is List) return data;

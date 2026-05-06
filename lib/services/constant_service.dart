@@ -43,4 +43,5 @@ class ApiRoutes {
   static String farmerLedger(String id) => '/farmers/$id/ledger';
 
    static const String purchases = '/purchases';
+  static String purchaseById(String id)      => '/purchases/$id';  
 }

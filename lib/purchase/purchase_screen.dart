@@ -38,7 +38,104 @@ class _NewPurchaseScreenState extends State<NewPurchaseScreen>
     _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeIn);
     _animCtrl.forward();
   }
+void _confirmDelete(PurchaseController controller) {
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Row(children: [
+        Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 22),
+        SizedBox(width: 10),
+        Text('Delete Purchase?',
+            style: TextStyle(fontSize: 16, fontFamily: 'Poppins',
+                fontWeight: FontWeight.w600)),
+      ]),
+      content: const Text(
+        'This will permanently delete the purchase and revert all ledger entries. This action cannot be undone.',
+        style: TextStyle(fontFamily: 'Poppins', fontSize: 13,
+            color: AppColors.textSecondary),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            Navigator.pop(context);
+            final success = await controller.deletePurchase();
+            if (success && mounted) {
+              _showSnack(context, 'Purchase deleted', success: false);
+              await Future.delayed(const Duration(milliseconds: 600));
+              if (mounted) Navigator.pop(context, 'deleted');
+            } else if (controller.errorMessage != null && mounted) {
+              // If deletion failed, offer force delete
+              _confirmForceDelete(controller);
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.error,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+          ),
+          child: const Text('Delete',
+              style: TextStyle(fontFamily: 'Poppins')),
+        ),
+      ],
+    ),
+  );
+}
 
+void _confirmForceDelete(PurchaseController controller) {
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Text('Force Delete?',
+          style: TextStyle(fontSize: 16, fontFamily: 'Poppins',
+              fontWeight: FontWeight.w600, color: AppColors.error)),
+      content: Text(
+        'Normal delete failed: ${controller.errorMessage}\n\n'
+        'Force delete will remove the purchase even if payments exist. Proceed?',
+        style: const TextStyle(fontFamily: 'Poppins', fontSize: 13,
+            color: AppColors.textSecondary),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            Navigator.pop(context);
+            final success =
+                await controller.deletePurchase(force: true);
+            if (success && mounted) {
+              _showSnack(context, 'Purchase force deleted', success: false);
+              await Future.delayed(const Duration(milliseconds: 600));
+              if (mounted) Navigator.pop(context, 'deleted');
+            } else if (mounted) {
+              _showSnack(context,
+                  controller.errorMessage ?? 'Delete failed',
+                  success: false);
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.error,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+          ),
+          child: const Text('Force Delete',
+              style: TextStyle(fontFamily: 'Poppins')),
+        ),
+      ],
+    ),
+  );
+}
   @override
   void dispose() {
     _animCtrl.dispose();
@@ -553,12 +650,50 @@ class _NewPurchaseScreenState extends State<NewPurchaseScreen>
 
   // ── STEP 3 — Summary + Rate Lock + Confirm ────────────────
 
-  Widget _buildStep3Summary(PurchaseController controller) {
+ Widget _buildStep3Summary(PurchaseController controller) {
     return Column(
       key: const ValueKey('s3'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _stepHeader('✅ Summary', 'Review and confirm purchase'),
+        Row(
+          children: [
+            Expanded(
+              child: _stepHeader('✅ Summary', 'Review and confirm purchase'),
+            ),
+            // Show delete button only in edit mode
+            if (controller.isEditMode)
+              GestureDetector(
+                onTap: () => _confirmDelete(controller),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.error.withOpacity(0.4)),
+                  ),
+                  child: controller.isDeleting
+                      ? const SizedBox(
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(
+                              color: AppColors.error, strokeWidth: 2))
+                      : const Row(
+                          children: [
+                            Icon(Icons.delete_outline_rounded,
+                                color: AppColors.error, size: 16),
+                            SizedBox(width: 4),
+                            Text('Delete',
+                                style: TextStyle(
+                                    color: AppColors.error,
+                                    fontSize: 12,
+                                    fontFamily: 'Poppins',
+                                    fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                ),
+              ),
+          ],
+        ),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(12),
@@ -566,6 +701,7 @@ class _NewPurchaseScreenState extends State<NewPurchaseScreen>
             color: AppColors.primarySurface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppColors.border),
+          
           ),
           child: Row(children: [
             Container(
@@ -941,13 +1077,18 @@ class _ProductLineCardState extends State<_ProductLineCard> {
           children: _pricingTypes.map((pt) {
             final selected = widget.line.pricingType == pt.$1;
             return GestureDetector(
-              onTap: () {
-                setState(() {
-                  final updatedLine = widget.line.copyWith(pricingType: pt.$1);
-                  widget.onChanged(updatedLine);
-                });
-                _update();
-              },
+            onTap: () {
+  final updatedLine = widget.line.copyWith(
+    pricingType: pt.$1,
+    productName: _nameCtrl.text,
+    rate: double.tryParse(_rateCtrl.text) ?? 0,
+    actualQty: double.tryParse(_qtyCtrl.text) ?? 0,
+    bags: double.tryParse(_bagsCtrl.text) ?? 0,
+    weightPerBag: double.tryParse(_weightCtrl.text) ?? 0,
+    qualityDeduction: double.tryParse(_qualCtrl.text) ?? 0,
+     );
+         widget.onChanged(updatedLine); 
+},
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 padding: const EdgeInsets.symmetric(
@@ -1399,17 +1540,38 @@ class _SummaryLineRow extends StatelessWidget {
           ),
         ]),
         const SizedBox(height: 6),
-        Row(children: [
-          _chip('${line.pricingType.toUpperCase()}'),
-          const SizedBox(width: 6),
-          _chip('${line.billedQty.toStringAsFixed(2)} ${line.unit}'),
-          const SizedBox(width: 6),
-          _chip('₹${line.rate.toStringAsFixed(2)}/${line.unit}'),
-          const Spacer(),
-          Text('₹${line.lineTotal.toStringAsFixed(2)}',
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
-                  color: AppColors.primaryDark, fontFamily: 'Poppins')),
-        ]),
+        Wrap(
+  spacing: 6,
+  runSpacing: 6,
+  crossAxisAlignment: WrapCrossAlignment.center,
+  children: [
+
+    _chip('${line.pricingType.toUpperCase()}'),
+    _chip('${line.billedQty.toStringAsFixed(2)} ${line.unit}'),
+    _chip('₹${line.rate.toStringAsFixed(2)}/${line.unit}'),
+
+    Text(
+      '₹${line.lineTotal.toStringAsFixed(2)}',
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+        color: AppColors.primaryDark,
+        fontFamily: 'Poppins',
+      ),
+    ),
+  ],
+),
+        // Row(children: [
+        //   _chip('${line.pricingType.toUpperCase()}'),
+        //   const SizedBox(width: 6),
+        //   _chip('${line.billedQty.toStringAsFixed(2)} ${line.unit}'),
+        //   const SizedBox(width: 6),
+        //   _chip('₹${line.rate.toStringAsFixed(2)}/${line.unit}'),
+        //   const Spacer(),
+        //   Text('₹${line.lineTotal.toStringAsFixed(2)}',
+        //       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+        //           color: AppColors.primaryDark, fontFamily: 'Poppins')),
+        // ]),
       ]),
     );
   }

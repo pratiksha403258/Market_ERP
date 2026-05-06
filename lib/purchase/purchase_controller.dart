@@ -1,7 +1,3 @@
-// ─────────────────────────────────────────────────────────────
-// PURCHASE CONTROLLER
-// ─────────────────────────────────────────────────────────────
-
 import 'package:flutter/material.dart';
 import '../../models/farmer_model.dart';
 import '../../models/purchase_model.dart';
@@ -10,8 +6,8 @@ import '../../services/purchase_service.dart';
 
 class PurchaseController extends ChangeNotifier {
   final PurchaseService _purchaseService = PurchaseService();
-  
-  // State
+
+  // ── State ─────────────────────────────────────────────────────
   int _currentStep = 0;
   FarmerModel? _selectedFarmer;
   List<FarmerModel> _farmers = [];
@@ -19,28 +15,34 @@ class PurchaseController extends ChangeNotifier {
   final List<PurchaseLine> _lines = [];
   final DeductionData _deductions = DeductionData();
   bool _isSaving = false;
+  bool _isDeleting = false;
   String? _errorMessage;
 
-  // Getters
-  int get currentStep => _currentStep;
-  FarmerModel? get selectedFarmer => _selectedFarmer;
-  List<FarmerModel> get farmers => _farmers;
-  bool get loadingFarmers => _loadingFarmers;
-  List<PurchaseLine> get lines => _lines;
-  DeductionData get deductions => _deductions;
-  bool get isSaving => _isSaving;
-  String? get errorMessage => _errorMessage;
+  // Edit mode — set these when editing an existing draft purchase
+  String? _editingPurchaseId;
+  bool get isEditMode => _editingPurchaseId != null;
 
-  // Computed values
+  // ── Getters ───────────────────────────────────────────────────
+  int get currentStep       => _currentStep;
+  FarmerModel? get selectedFarmer => _selectedFarmer;
+  List<FarmerModel> get farmers   => _farmers;
+  bool get loadingFarmers         => _loadingFarmers;
+  List<PurchaseLine> get lines    => _lines;
+  DeductionData get deductions    => _deductions;
+  bool get isSaving               => _isSaving;
+  bool get isDeleting             => _isDeleting;
+  String? get errorMessage        => _errorMessage;
+
+  // ── Computed ──────────────────────────────────────────────────
   double get grossTotal => _lines.fold(0, (s, l) => s + l.lineTotal);
-  
+
   double get commissionAmount {
     if (_deductions.commissionType == 'percent') {
       return (_deductions.commission / 100) * grossTotal;
     }
     return _deductions.commission;
   }
-  
+
   double get totalDeductions =>
       _deductions.transport +
       _deductions.labour +
@@ -49,16 +51,43 @@ class PurchaseController extends ChangeNotifier {
       _deductions.returnDeduction +
       _deductions.advanceAdjusted +
       _deductions.other;
-  
-  double get finalPayable => (grossTotal - totalDeductions).clamp(0, double.infinity);
 
-  // Lifecycle
+  double get finalPayable =>
+      (grossTotal - totalDeductions).clamp(0, double.infinity);
+
+  // ── Init ──────────────────────────────────────────────────────
   PurchaseController() {
     loadFarmers();
-    addLine(); // start with one empty line
+    addLine();
   }
 
-  // Farmer Management
+  /// Call this to open controller in edit mode for an existing draft purchase
+  void initForEdit({
+    required String purchaseId,
+    required FarmerModel farmer,
+    required List<PurchaseLine> existingLines,
+    required DeductionData existingDeductions,
+  }) {
+    _editingPurchaseId = purchaseId;
+    _selectedFarmer = farmer;
+    _lines
+      ..clear()
+      ..addAll(existingLines);
+    _deductions.transport       = existingDeductions.transport;
+    _deductions.labour          = existingDeductions.labour;
+    _deductions.commission      = existingDeductions.commission;
+    _deductions.commissionType  = existingDeductions.commissionType;
+    _deductions.storage         = existingDeductions.storage;
+    _deductions.storageNote     = existingDeductions.storageNote;
+    _deductions.returnDeduction = existingDeductions.returnDeduction;
+    _deductions.returnNote      = existingDeductions.returnNote;
+    _deductions.advanceAdjusted = existingDeductions.advanceAdjusted;
+    _deductions.other           = existingDeductions.other;
+    _deductions.otherNote       = existingDeductions.otherNote;
+    notifyListeners();
+  }
+
+  // ── Farmers ───────────────────────────────────────────────────
   Future<void> loadFarmers() async {
     setLoadingFarmers(true);
     try {
@@ -76,24 +105,20 @@ class PurchaseController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Navigation
+  // ── Navigation ────────────────────────────────────────────────
   void nextStep() {
     if (_currentStep == 0 && _selectedFarmer == null) {
       setError('Please select a farmer');
       return;
     }
-    
     if (_currentStep == 1 && !areLinesValid()) {
       setError('Fill all product name and rate fields');
       return;
     }
-    
     if (_currentStep == 1 && _selectedFarmer != null) {
-      // Pre-fill advance in deductions
-      _deductions.advanceAdjusted = 
+      _deductions.advanceAdjusted =
           _selectedFarmer!.advanceBalance.clamp(0, grossTotal);
     }
-    
     if (_currentStep < 3) {
       setError(null);
       _currentStep++;
@@ -109,15 +134,13 @@ class PurchaseController extends ChangeNotifier {
     }
   }
 
-  bool areLinesValid() {
-    return _lines.every((l) => l.productName.isNotEmpty && l.rate > 0);
-  }
+  bool areLinesValid() =>
+      _lines.every((l) => l.productName.isNotEmpty && l.rate > 0);
 
-  // Line Management
+  // ── Lines ─────────────────────────────────────────────────────
   void addLine() {
     _lines.add(PurchaseLine(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-    ));
+        id: DateTime.now().millisecondsSinceEpoch.toString()));
     notifyListeners();
   }
 
@@ -135,7 +158,7 @@ class PurchaseController extends ChangeNotifier {
     }
   }
 
-  // Deduction Management
+  // ── Deductions ────────────────────────────────────────────────
   void updateDeduction({
     double? transport,
     double? labour,
@@ -149,17 +172,17 @@ class PurchaseController extends ChangeNotifier {
     double? other,
     String? otherNote,
   }) {
-    _deductions.transport = transport ?? _deductions.transport;
-    _deductions.labour = labour ?? _deductions.labour;
-    _deductions.commission = commission ?? _deductions.commission;
-    _deductions.commissionType = commissionType ?? _deductions.commissionType;
-    _deductions.storage = storage ?? _deductions.storage;
-    _deductions.storageNote = storageNote ?? _deductions.storageNote;
+    _deductions.transport       = transport       ?? _deductions.transport;
+    _deductions.labour          = labour          ?? _deductions.labour;
+    _deductions.commission      = commission      ?? _deductions.commission;
+    _deductions.commissionType  = commissionType  ?? _deductions.commissionType;
+    _deductions.storage         = storage         ?? _deductions.storage;
+    _deductions.storageNote     = storageNote     ?? _deductions.storageNote;
     _deductions.returnDeduction = returnDeduction ?? _deductions.returnDeduction;
-    _deductions.returnNote = returnNote ?? _deductions.returnNote;
+    _deductions.returnNote      = returnNote      ?? _deductions.returnNote;
     _deductions.advanceAdjusted = advanceAdjusted ?? _deductions.advanceAdjusted;
-    _deductions.other = other ?? _deductions.other;
-    _deductions.otherNote = otherNote ?? _deductions.otherNote;
+    _deductions.other           = other           ?? _deductions.other;
+    _deductions.otherNote       = otherNote       ?? _deductions.otherNote;
     notifyListeners();
   }
 
@@ -169,7 +192,6 @@ class PurchaseController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Rate Lock
   void toggleRateLock(String lineId, bool locked) {
     final index = _lines.indexWhere((l) => l.id == lineId);
     if (index != -1) {
@@ -178,66 +200,98 @@ class PurchaseController extends ChangeNotifier {
     }
   }
 
-  // Save Purchase
+  // ── SAVE OR UPDATE ────────────────────────────────────────────
   Future<bool> savePurchase() async {
     if (_selectedFarmer == null) {
       setError('No farmer selected');
       return false;
     }
-    
+
     setSaving(true);
     setError(null);
-    
+
     try {
-      await _purchaseService.savePurchase(
-        farmerId: _selectedFarmer!.id,
-        lines: _lines,
-        deductions: _deductions,
-      );
+      if (isEditMode) {
+        // ── PUT — update existing draft
+        await _purchaseService.updatePurchase(
+          purchaseId: _editingPurchaseId!,
+          farmerId: _selectedFarmer!.id,
+          lines: _lines,
+          deductions: _deductions,
+        );
+      } else {
+        // ── POST — create new purchase
+        final purchaseId = await _purchaseService.savePurchase(
+          farmerId: _selectedFarmer!.id,
+          lines: _lines,
+          deductions: _deductions,
+        );
+        // Store the ID in case we need it later
+        _editingPurchaseId = purchaseId.isNotEmpty ? purchaseId : null;
+      }
+
       setSaving(false);
       return true;
     } catch (e) {
-      setError('Failed to save purchase: $e');
+      setError('Failed to save: $e');
       setSaving(false);
       return false;
     }
   }
 
-  // Reset
+  // ── DELETE ────────────────────────────────────────────────────
+  Future<bool> deletePurchase({bool force = false}) async {
+    if (_editingPurchaseId == null) {
+      setError('No purchase to delete');
+      return false;
+    }
+
+    _isDeleting = true;
+    setError(null);
+    notifyListeners();
+
+    try {
+      await _purchaseService.deletePurchase(
+        purchaseId: _editingPurchaseId!,
+        force: force,
+      );
+      _isDeleting = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      setError('Failed to delete: $e');
+      _isDeleting = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ── Reset ─────────────────────────────────────────────────────
   void reset() {
-    _currentStep = 0;
-    _selectedFarmer = null;
+    _currentStep        = 0;
+    _selectedFarmer     = null;
+    _editingPurchaseId  = null;
     _lines.clear();
-    _deductions.transport = 0;
-    _deductions.labour = 0;
-    _deductions.commission = 0;
-    _deductions.commissionType = 'fixed';
-    _deductions.storage = 0;
-    _deductions.storageNote = '';
+    _deductions.transport       = 0;
+    _deductions.labour          = 0;
+    _deductions.commission      = 0;
+    _deductions.commissionType  = 'fixed';
+    _deductions.storage         = 0;
+    _deductions.storageNote     = '';
     _deductions.returnDeduction = 0;
-    _deductions.returnNote = '';
+    _deductions.returnNote      = '';
     _deductions.advanceAdjusted = 0;
-    _deductions.other = 0;
-    _deductions.otherNote = '';
-    _isSaving = false;
+    _deductions.other           = 0;
+    _deductions.otherNote       = '';
+    _isSaving    = false;
+    _isDeleting  = false;
     _errorMessage = null;
     addLine();
     notifyListeners();
   }
 
-  // Private helpers
-  void setLoadingFarmers(bool value) {
-    _loadingFarmers = value;
-    notifyListeners();
-  }
-
-  void setSaving(bool value) {
-    _isSaving = value;
-    notifyListeners();
-  }
-
-  void setError(String? message) {
-    _errorMessage = message;
-    notifyListeners();
-  }
+  // ── Helpers ───────────────────────────────────────────────────
+  void setLoadingFarmers(bool v) { _loadingFarmers = v; notifyListeners(); }
+  void setSaving(bool v)         { _isSaving = v;       notifyListeners(); }
+  void setError(String? msg)     { _errorMessage = msg;  notifyListeners(); }
 }

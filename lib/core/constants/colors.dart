@@ -314,7 +314,7 @@ class AppTextStyles {
     color: AppColors.textPrimary,
   );
   static const TextStyle bodyMedium = TextStyle(
-    fontFamily: _font, fontSize: 13, fontWeight: FontWeight.w400,
+    fontFamily: _font, fontSize: 14, fontWeight: FontWeight.w400,
     color: AppColors.textSecondary,
   );
   static const TextStyle bodySmall = TextStyle(
@@ -326,7 +326,7 @@ class AppTextStyles {
     color: AppColors.textPrimary,
   );
   static const TextStyle labelSmall = TextStyle(
-    fontFamily: _font, fontSize: 10, fontWeight: FontWeight.w500,
+    fontFamily: _font, fontSize:  12 , fontWeight: FontWeight.w500,
     color: AppColors.textHint, letterSpacing: 0.4,
   );
   static const TextStyle buttonText = TextStyle(
@@ -402,7 +402,8 @@ class AppTheme {
       elevation: 0,
       centerTitle: false,
       titleTextStyle: TextStyle(
-        fontFamily: 'Poppins', fontSize: 17,
+        
+        fontFamily: 'Poppins', fontSize: 18,
         fontWeight: FontWeight.w600, color: AppColors.textPrimary,
       ),
     ),

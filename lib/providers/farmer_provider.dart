@@ -62,6 +62,25 @@ class FarmerProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+  // Add this method to FarmerProvider class
+Future<bool> deleteFarmer(String id) async {
+  _isLoading = true;
+  _error = null;
+  notifyListeners();
+
+  final result = await FarmerService.instance.deleteFarmer(id);
+  
+  _isLoading = false;
+  if (result.isSuccess) {
+    _farmers.removeWhere((f) => f.id == id);
+    _total--;
+    notifyListeners();
+    return true;
+  }
+  _error = result.message;
+  notifyListeners();
+  return false;
+}
 
   // ── Create farmer ─────────────────────────────────────────────
   Future<bool> createFarmer({
