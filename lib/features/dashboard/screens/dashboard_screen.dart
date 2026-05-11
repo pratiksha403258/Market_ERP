@@ -1,514 +1,3 @@
-// import 'package:flutter/material.dart';
-// import 'package:provider/provider.dart';
-// import '../../../core/constants/colors.dart';
-// import '../../../providers/auth_provider.dart';
-
-// class DashboardScreen extends StatelessWidget {
-//   const DashboardScreen({super.key});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     final auth = context.watch<AuthProvider>();
-//     final userName = auth.user?.name ?? 'User';
-
-//     return Scaffold(
-//       backgroundColor: AppColors.background,
-//       body: SafeArea(
-//         child: SingleChildScrollView(
-//           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-//           child: Column(
-//             crossAxisAlignment: CrossAxisAlignment.start,
-//             children: [
-
-//               // ── Header ───────────────────────────────────────
-//               Row(
-//                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//                 children: [
-//                   Column(
-//                     crossAxisAlignment: CrossAxisAlignment.start,
-//                     children: [
-//                       Text('Hello, ${userName.split(' ').first}! 👋',
-//                           style: AppTextStyles.headingLarge),
-//                       const SizedBox(height: 3),
-//                       Text(
-//                         _todayLabel(),
-//                         style: AppTextStyles.bodyMedium,
-//                       ),
-//                     ],
-//                   ),
-//                   Row(children: [
-//                     // Notification bell
-//                     Container(
-//                       padding: const EdgeInsets.all(10),
-//                       decoration: BoxDecoration(
-//                         color: AppColors.surface,
-//                         borderRadius: BorderRadius.circular(12),
-//                         border: Border.all(color: AppColors.border),
-//                         boxShadow: [BoxShadow(
-//                           color: AppColors.shadowLight,
-//                           blurRadius: 8, offset: const Offset(0, 2),
-//                         )],
-//                       ),
-//                       child: const Icon(Icons.notifications_none_rounded,
-//                           color: AppColors.primary, size: 22),
-//                     ),
-//                     const SizedBox(width: 10),
-//                     // Avatar
-//                     Container(
-//                       width: 40, height: 40,
-//                       decoration: BoxDecoration(
-//                         gradient: AppColors.heroGradient,
-//                         shape: BoxShape.circle,
-//                       ),
-//                       child: Center(
-//                         child: Text(auth.user?.initials ?? 'U',
-//                             style: const TextStyle(color: Colors.white,
-//                                 fontWeight: FontWeight.w700, fontSize: 14,
-//                                 fontFamily: 'Poppins')),
-//                       ),
-//                     ),
-//                   ]),
-//                 ],
-//               ),
-
-//               const SizedBox(height: 20),
-
-//               // ── Hero Banner Card ──────────────────────────────
-//               Container(
-//                 width: double.infinity,
-//                 padding: const EdgeInsets.all(20),
-//                 decoration: BoxDecoration(
-//                   gradient: AppColors.heroGradient,
-//                   borderRadius: BorderRadius.circular(20),
-//                   boxShadow: [BoxShadow(
-//                     color: AppColors.primary.withOpacity(0.28),
-//                     blurRadius: 20, offset: const Offset(0, 6),
-//                   )],
-//                 ),
-//                 child: Row(children: [
-//                   Expanded(child: Column(
-//                     crossAxisAlignment: CrossAxisAlignment.start,
-//                     children: [
-//                       const Text('Farming Made Simple,',
-//                           style: TextStyle(color: Colors.white70, fontSize: 12,
-//                               fontFamily: 'Poppins')),
-//                       const SizedBox(height: 2),
-//                       const Text('Smarter & Sustainable',
-//                           style: TextStyle(color: Colors.white, fontSize: 17,
-//                               fontWeight: FontWeight.w700, fontFamily: 'Poppins')),
-//                       const SizedBox(height: 14),
-//                       Container(
-//                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-//                         decoration: BoxDecoration(
-//                           color: Colors.white.withOpacity(0.25),
-//                           borderRadius: BorderRadius.circular(20),
-//                         ),
-//                         child: const Text('Market ERP v1.0',
-//                             style: TextStyle(color: Colors.white, fontSize: 12,
-//                                 fontWeight: FontWeight.w500, fontFamily: 'Poppins')),
-//                       ),
-//                     ],
-//                   )),
-//                   const SizedBox(width: 12),
-//                   Container(
-//                     padding: const EdgeInsets.all(16),
-//                     decoration: BoxDecoration(
-//                       color: Colors.white.withOpacity(0.2),
-//                       shape: BoxShape.circle,
-//                     ),
-//                     child: const Icon(Icons.storefront_rounded,
-//                         color: Colors.white, size: 36),
-//                   ),
-//                 ]),
-//               ),
-
-//               const SizedBox(height: 20),
-
-//               // ── KPI Stats Grid ────────────────────────────────
-//               const Text('Today\'s Overview',
-//                   style: AppTextStyles.headingMedium),
-//               const SizedBox(height: 12),
-
-//               GridView.count(
-//                 crossAxisCount: 2,
-//                 shrinkWrap: true,
-//                 physics: const NeverScrollableScrollPhysics(),
-//                 mainAxisSpacing: 12,
-//                 crossAxisSpacing: 12,
-//                 childAspectRatio: 1.45,
-//                 children: const [
-//                   _KpiCard(
-//                     icon: Icons.local_shipping_rounded,
-//                     label: "Today's Arrival",
-//                     value: '2,450 kg',
-//                     change: '+12%',
-//                     positive: true,
-//                   ),
-//                   _KpiCard(
-//                     icon: Icons.people_rounded,
-//                     label: 'Total Farmers',
-//                     value: '128',
-//                     change: '+5',
-//                     positive: true,
-//                   ),
-//                   _KpiCard(
-//                     icon: Icons.account_balance_wallet_rounded,
-//                     label: 'Pending Dues',
-//                     value: '₹1,45,000',
-//                     change: '8 entries',
-//                     positive: false,
-//                   ),
-//                   _KpiCard(
-//                     icon: Icons.trending_up_rounded,
-//                     label: "Today's Sales",
-//                     value: '₹78,500',
-//                     change: '+15%',
-//                     positive: true,
-//                   ),
-//                 ],
-//               ),
-
-//               const SizedBox(height: 20),
-
-//               // ── Quick Actions ─────────────────────────────────
-//               const Text('Quick Actions', style: AppTextStyles.headingMedium),
-//               const SizedBox(height: 12),
-//               Row(children: [
-//                 Expanded(child: _QuickAction(
-//                   icon: Icons.add_circle_rounded,
-//                   label: 'New Purchase',
-//                   color: AppColors.primary,
-//                   onTap: () {},
-//                 )),
-//                 const SizedBox(width: 10),
-//                 Expanded(child: _QuickAction(
-//                   icon: Icons.person_add_rounded,
-//                   label: 'Add Farmer',
-//                   color: AppColors.secondary,
-//                   onTap: () {},
-//                 )),
-//                 const SizedBox(width: 10),
-//                 Expanded(child: _QuickAction(
-//                   icon: Icons.payments_rounded,
-//                   label: 'Payment',
-//                   color: AppColors.info,
-//                   onTap: () {},
-//                 )),
-//               ]),
-
-//               const SizedBox(height: 20),
-
-//               // ── Weekly Bar Chart ──────────────────────────────
-//               Container(
-//                 padding: const EdgeInsets.all(16),
-//                 decoration: BoxDecoration(
-//                   color: AppColors.surface,
-//                   borderRadius: BorderRadius.circular(16),
-//                   border: Border.all(color: AppColors.border),
-//                 ),
-//                 child: Column(
-//                   crossAxisAlignment: CrossAxisAlignment.start,
-//                   children: [
-//                     Row(
-//                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//                       children: [
-//                         Column(
-//                           crossAxisAlignment: CrossAxisAlignment.start,
-//                           children: [
-//                             const Text('Weekly Arrivals',
-//                                 style: AppTextStyles.headingSmall),
-//                             Text('Last 7 days',
-//                                 style: AppTextStyles.bodySmall.copyWith(
-//                                     color: AppColors.textHint)),
-//                           ],
-//                         ),
-//                         Container(
-//                           padding: const EdgeInsets.symmetric(
-//                               horizontal: 10, vertical: 4),
-//                           decoration: BoxDecoration(
-//                             color: AppColors.successSurface,
-//                             borderRadius: BorderRadius.circular(12),
-//                           ),
-//                           child: const Row(children: [
-//                             Icon(Icons.trending_up_rounded,
-//                                 color: AppColors.success, size: 13),
-//                             SizedBox(width: 4),
-//                             Text('+12%', style: TextStyle(
-//                                 color: AppColors.success, fontSize: 11,
-//                                 fontWeight: FontWeight.w600, fontFamily: 'Poppins')),
-//                           ]),
-//                         ),
-//                       ],
-//                     ),
-//                     const SizedBox(height: 20),
-//                     SizedBox(
-//                       height: 120,
-//                       child: Row(
-//                         crossAxisAlignment: CrossAxisAlignment.end,
-//                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-//                         children: const [
-//                           _Bar(day: 'Mon', pct: 0.65),
-//                           _Bar(day: 'Tue', pct: 0.72),
-//                           _Bar(day: 'Wed', pct: 0.80),
-//                           _Bar(day: 'Thu', pct: 0.78),
-//                           _Bar(day: 'Fri', pct: 0.85),
-//                           _Bar(day: 'Sat', pct: 0.92),
-//                           _Bar(day: 'Sun', pct: 0.70, isToday: true),
-//                         ],
-//                       ),
-//                     ),
-//                     const SizedBox(height: 14),
-//                     const Divider(color: AppColors.divider),
-//                     const SizedBox(height: 10),
-//                     Row(
-//                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//                       children: [
-//                         const Text('Total this week',
-//                             style: TextStyle(fontSize: 12,
-//                                 color: AppColors.textHint, fontFamily: 'Poppins')),
-//                         Text('8,200 kg',
-//                             style: AppTextStyles.numberSmall.copyWith(
-//                                 color: AppColors.primary)),
-//                       ],
-//                     ),
-//                   ],
-//                 ),
-//               ),
-
-//               const SizedBox(height: 20),
-
-//               // ── Recent Purchases ──────────────────────────────
-//               Row(
-//                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//                 children: [
-//                   const Text('Recent Purchases',
-//                       style: AppTextStyles.headingMedium),
-//                   TextButton(
-//                     onPressed: () {},
-//                     child: const Text('View All',
-//                         style: TextStyle(color: AppColors.primary,
-//                             fontSize: 13, fontFamily: 'Poppins')),
-//                   ),
-//                 ],
-//               ),
-//               const SizedBox(height: 8),
-
-//               ...List.generate(3, (i) => _PurchaseTile(index: i)),
-
-//               const SizedBox(height: 20),
-//             ],
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-
-//   String _todayLabel() {
-//     final d = DateTime.now();
-//     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-//         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-//     const days   = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-//     return '${days[d.weekday % 7]}, ${d.day} ${months[d.month - 1]} ${d.year}';
-//   }
-// }
-
-// // ── KPI Card ──────────────────────────────────────────────────
-// class _KpiCard extends StatelessWidget {
-//   final IconData icon;
-//   final String label;
-//   final String value;
-//   final String change;
-//   final bool positive;
-
-//   const _KpiCard({
-//     required this.icon, required this.label,
-//     required this.value, required this.change, required this.positive,
-//   });
-
-//   @override
-//   Widget build(BuildContext context) {
-//     final badgeColor = positive ? AppColors.successSurface : AppColors.warningSurface;
-//     final textColor  = positive ? AppColors.success : AppColors.warning;
-
-//     return Container(
-//       padding: const EdgeInsets.all(12),
-//       decoration: BoxDecoration(
-//         color: AppColors.surface,
-//         borderRadius: BorderRadius.circular(14),
-//         border: Border.all(color: AppColors.border),
-//         boxShadow: [BoxShadow(
-//           color: AppColors.shadowLight, blurRadius: 8, offset: const Offset(0, 2),
-//         )],
-//       ),
-//       child: Column(
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//         children: [
-//           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//             children: [
-//               Container(
-//                 padding: const EdgeInsets.all(7),
-//                 decoration: BoxDecoration(
-//                   color: AppColors.primarySurface,
-//                   borderRadius: BorderRadius.circular(9),
-//                 ),
-//                 child: Icon(icon, color: AppColors.primary, size: 18),
-//               ),
-//               Container(
-//                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-//                 decoration: BoxDecoration(
-//                   color: badgeColor,
-//                   borderRadius: BorderRadius.circular(8),
-//                 ),
-//                 child: Text(change, style: TextStyle(
-//                     color: textColor, fontSize: 10,
-//                     fontWeight: FontWeight.w600, fontFamily: 'Poppins')),
-//               ),
-//             ],
-//           ),
-//           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-//             Text(value, style: AppTextStyles.numberSmall),
-//             Text(label, style: AppTextStyles.labelSmall),
-//           ]),
-//         ],
-//       ),
-//     );
-//   }
-// }
-
-// // ── Quick Action ──────────────────────────────────────────────
-// class _QuickAction extends StatelessWidget {
-//   final IconData icon;
-//   final String label;
-//   final Color color;
-//   final VoidCallback onTap;
-//   const _QuickAction({required this.icon, required this.label,
-//       required this.color, required this.onTap});
-
-//   @override
-//   Widget build(BuildContext context) => GestureDetector(
-//     onTap: onTap,
-//     child: Container(
-//       padding: const EdgeInsets.symmetric(vertical: 14),
-//       decoration: BoxDecoration(
-//         color: AppColors.surface,
-//         borderRadius: BorderRadius.circular(14),
-//         border: Border.all(color: AppColors.border),
-//       ),
-//       child: Column(mainAxisSize: MainAxisSize.min, children: [
-//         Container(
-//           padding: const EdgeInsets.all(10),
-//           decoration: BoxDecoration(
-//             color: color.withOpacity(0.12),
-//             shape: BoxShape.circle,
-//           ),
-//           child: Icon(icon, color: color, size: 22),
-//         ),
-//         const SizedBox(height: 8),
-//         Text(label, style: const TextStyle(fontSize: 11,
-//             fontWeight: FontWeight.w600, color: AppColors.textPrimary,
-//             fontFamily: 'Poppins'),
-//             textAlign: TextAlign.center),
-//       ]),
-//     ),
-//   );
-// }
-
-// // ── Bar Chart ─────────────────────────────────────────────────
-// class _Bar extends StatelessWidget {
-//   final String day;
-//   final double pct;
-//   final bool isToday;
-//   const _Bar({required this.day, required this.pct, this.isToday = false});
-
-//   @override
-//   Widget build(BuildContext context) => Column(children: [
-//     if (isToday)
-//       Container(
-//         margin: const EdgeInsets.only(bottom: 4),
-//         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-//         decoration: BoxDecoration(
-//           color: AppColors.primary,
-//           borderRadius: BorderRadius.circular(6),
-//         ),
-//         child: const Text('Now', style: TextStyle(color: Colors.white,
-//             fontSize: 8, fontFamily: 'Poppins')),
-//       )
-//     else const SizedBox(height: 18),
-//     Flexible(
-//       child: Container(
-//         width: 34,
-//         height: 120 * pct,
-//         decoration: BoxDecoration(
-//           gradient: LinearGradient(
-//             colors: isToday
-//                 ? [AppColors.secondary, AppColors.primary]
-//                 : [AppColors.primaryLight, AppColors.primary],
-//             begin: Alignment.topCenter,
-//             end: Alignment.bottomCenter,
-//           ),
-//           borderRadius: BorderRadius.circular(8),
-//         ),
-//       ),
-//     ),
-//     const SizedBox(height: 6),
-//     Text(day, style: const TextStyle(fontSize: 10,
-//         color: AppColors.textHint, fontFamily: 'Poppins')),
-//   ]);
-// }
-
-// // ── Purchase Tile ─────────────────────────────────────────────
-// class _PurchaseTile extends StatelessWidget {
-//   final int index;
-//   const _PurchaseTile({required this.index});
-
-//   static const _data = [
-//     ['Onion', 'Ram Singh',   '₹24,500', 'Just now'],
-//     ['Tomato','Suresh Patil','₹18,200', '2h ago'],
-//     ['Potato','Laxman Jadhav','₹31,000','5h ago'],
-//   ];
-
-//   @override
-//   Widget build(BuildContext context) {
-//     final d = _data[index];
-//     return Container(
-//       margin: const EdgeInsets.only(bottom: 10),
-//       padding: const EdgeInsets.all(12),
-//       decoration: BoxDecoration(
-//         color: AppColors.surface,
-//         borderRadius: BorderRadius.circular(14),
-//         border: Border.all(color: AppColors.border),
-//       ),
-//       child: Row(children: [
-//         Container(
-//           width: 44, height: 44,
-//           decoration: BoxDecoration(
-//             color: AppColors.primarySurface,
-//             borderRadius: BorderRadius.circular(12),
-//           ),
-//           child: const Icon(Icons.agriculture_rounded,
-//               color: AppColors.primary, size: 22),
-//         ),
-//         const SizedBox(width: 12),
-//         Expanded(child: Column(
-//           crossAxisAlignment: CrossAxisAlignment.start,
-//           children: [
-//             Text(d[0], style: AppTextStyles.labelLarge),
-//             const SizedBox(height: 2),
-//             Text('Farmer: ${d[1]}', style: AppTextStyles.bodySmall),
-//           ],
-//         )),
-//         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-//           Text(d[2], style: AppTextStyles.labelLarge.copyWith(
-//               color: AppColors.primaryDark)),
-//           const SizedBox(height: 2),
-//           Text(d[3], style: AppTextStyles.bodySmall),
-//         ]),
-//       ]),
-//     );
-//   }
-// }
-
 
 // ─────────────────────────────────────────────────────────────
 //  DASHBOARD SCREEN — Real API Data
@@ -518,7 +7,15 @@
 //    - GET /purchases/summary → pending dues, weekly data
 // ─────────────────────────────────────────────────────────────
 
+import 'package:agr_market/features/auth/screens/language_selection_screen.dart';
+import 'package:agr_market/features/auth/screens/profile_screen.dart';
+import 'package:agr_market/features/dashboard/screens/reports_screen.dart';
+import 'package:agr_market/inventory/inventory_list_screen.dart';
+import 'package:agr_market/ledger/ledger_screen.dart';
+import 'package:agr_market/payment/payment_selection_screen.dart';
+// import 'package:agr_market/purchase/purchase_list_screen.dart';
 import 'package:agr_market/purchase/purchase_screen.dart';
+import 'package:agr_market/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/colors.dart';
@@ -531,19 +28,23 @@ import '../../farmers/screens/farmer_registration_screen.dart';
 
 class _DashboardData {
   final int totalFarmers;
-  final double todayArrivalKg;
-  final double todaySalesTotal;
-  final double totalPendingDues;
+  final int todayPurchaseCount;
+  final double thisMonthValue;
+  final int thisMonthCount;
+  final double totalPendingPayments;
+  final int pendingExpenseApprovals;
   final List<Map<String, dynamic>> recentPurchases;
-  final List<double> weeklyArrivals; // 7 values Mon–Sun
+  final List<double> weeklyArrivals;
 
   const _DashboardData({
     this.totalFarmers = 0,
-    this.todayArrivalKg = 0,
-    this.todaySalesTotal = 0,
-    this.totalPendingDues = 0,
+    this.todayPurchaseCount = 0,
+    this.thisMonthValue = 0,
+    this.thisMonthCount = 0,
+    this.totalPendingPayments = 0,
+    this.pendingExpenseApprovals = 0,
     this.recentPurchases = const [],
-    this.weeklyArrivals = const [0, 0, 0, 0, 0, 0, 0],
+    this.weeklyArrivals = const [0.1,0.1,0.1,0.1,0.1,0.1,0.1],
   });
 }
 
@@ -566,344 +67,152 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _loadDashboard();
   }
- Future<void> _loadDashboard() async {
-  setState(() { 
-    _loading = true; 
-    _hasError = false; 
-  });
-  
-  try {
-    print('🔄 Loading dashboard data...');
-    
-    // Today's date range
+
+  // ── NEW helper methods ─────────────────────────────────────
+  bool _isToday(String dateStr) {
+    if (dateStr.isEmpty) return false;
+    final date = DateTime.tryParse(dateStr)?.toLocal();
+    if (date == null) return false;
     final now = DateTime.now();
-    final todayStart = DateTime(now.year, now.month, now.day);
-    final todayEnd = todayStart.add(const Duration(days: 1));
-    final todayStartStr = todayStart.toIso8601String();
-    final todayEndStr = todayEnd.toIso8601String();
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
+  }
 
-    // Week start (Monday)
-    final weekStart = todayStart.subtract(Duration(days: now.weekday - 1));
+  bool _isThisWeek(String dateStr, DateTime weekStart) {
+    if (dateStr.isEmpty) return false;
+    final date = DateTime.tryParse(dateStr)?.toLocal();
+    if (date == null) return false;
+    final now = DateTime.now();
+    final todayEnd = DateTime(now.year, now.month, now.day + 1);
+    return date.isAfter(weekStart.subtract(const Duration(seconds: 1))) &&
+        date.isBefore(todayEnd);
+  }
+  // ───────────────────────────────────────────────────────────
+Future<void> _loadDashboard() async {
+  setState(() { _loading = true; _hasError = false; });
+  try {
 
-    // ── Fetch all required data ──
-    
-    int farmerCount = 0;
-    double todayKg = 0;
-    double todaySales = 0;
-    double pendingDues = 0;
-    List<Map<String, dynamic>> recentPurchases = [];
-    List<double> weeklyNorm = [0, 0, 0, 0, 0, 0, 0];
-    
-    // 1. Fetch farmers
+    // ── CALL 1: Dashboard KPIs ──────────────────────────────
+    final dashRes = await DioClient.instance.dio
+        .get(ApiRoutes.dashboard);
+    final d = dashRes.data['data'] as Map<String, dynamic>;
+    final monthly =
+        d['thisMonthPurchases'] as Map<String, dynamic>;
+
+    final totalFarmers =
+        (d['totalActiveFarmers'] as num?)?.toInt() ?? 0;
+    final todayCount =
+        (d['todayPurchaseCount'] as num?)?.toInt() ?? 0;
+    final monthValue =
+        (monthly['value'] as num?)?.toDouble() ?? 0.0;
+    final monthCount =
+        (monthly['count'] as num?)?.toInt() ?? 0;
+    final pendingPayments =
+        (d['totalPendingPayments'] as num?)?.toDouble() ?? 0.0;
+    final pendingExpenses =
+        (d['pendingExpenseApprovals'] as num?)?.toInt() ?? 0;
+
+    debugPrint('✅ Dashboard KPIs: Farmers=$totalFarmers '
+        'Pending=₹$pendingPayments Month=₹$monthValue');
+
+    // ── CALL 2: Purchases for weekly bars + recent list ─────
+    // status filter skips draft records (which have ₹0 values)
+    List allPurchases = [];
     try {
-      final farmerRes = await DioClient.instance.dio.get(ApiRoutes.farmers);
-      final farmerData = farmerRes.data;
-      print('✅ Farmers API success');
-      
-      if (farmerData is List) {
-        farmerCount = farmerData.length;
-      } else if (farmerData is Map) {
-        if (farmerData['data'] is List) {
-          farmerCount = (farmerData['data'] as List).length;
-        } else if (farmerData['farmers'] is List) {
-          farmerCount = (farmerData['farmers'] as List).length;
-        } else if (farmerData['total'] != null) {
-          farmerCount = (farmerData['total'] as num).toInt();
-        }
-      }
-      print('✅ Total Farmers: $farmerCount');
-    } catch (e) {
-      print('❌ Farmers API failed: $e');
-    }
-    
-    // 2. Fetch today's purchases
-    try {
-      final todayRes = await DioClient.instance.dio.get(
-        ApiRoutes.purchases, 
-        queryParameters: {
-          'startDate': todayStartStr,
-          'endDate': todayEndStr,
-          'limit': 500,
-        }
-      );
-      print('✅ Today\'s purchases API success');
-      
-      final todayList = _extractList(todayRes.data);
-      print('📊 Today\'s purchases count: ${todayList.length}');
-      
-      for (final p in todayList) {
-        final lines = p['lines'] as List? ?? [];
-        for (final l in lines) {
-          if ((l['pricingType'] ?? '') == 'kg') {
-            todayKg += (l['billedQty'] as num?)?.toDouble() ?? 0;
-          }
-        }
-        todaySales += (p['finalPayable'] as num?)?.toDouble() ?? 0;
-      }
-    } catch (e) {
-      print('❌ Today\'s purchases API failed: $e');
-    }
-    
-    // 3. Fetch recent purchases
-    try {
-      final recentRes = await DioClient.instance.dio.get(
-        ApiRoutes.purchases,
-        queryParameters: {'limit': 3, 'sortOrder': 'desc'}
-      );
-      print('✅ Recent purchases API success');
-      
-      final recentList = _extractList(recentRes.data).take(3).toList();
-      recentPurchases = recentList.map((p) {
-        final lines = p['lines'] as List? ?? [];
-        final firstProduct = lines.isNotEmpty
-            ? (lines[0]['productName'] ?? 'Product')
-            : 'Purchase';
-        final farmer = p['farmer'];
-        final farmerName = farmer is Map
-            ? farmer['name'] ?? 'Unknown'
-            : 'Unknown';
-        return {
-          'product': firstProduct,
-          'farmer': farmerName,
-          'amount': (p['finalPayable'] as num?)?.toDouble() ?? 0,
-          'date': p['purchaseDate'] ?? p['createdAt'] ?? '',
-          'receiptNumber': p['receiptNumber'] ?? '',
-        };
-      }).toList();
-    } catch (e) {
-      print('❌ Recent purchases API failed: $e');
-    }
-    
-    // 4. Calculate pending dues from all purchases (instead of summary endpoint)
-    try {
-      final allPurchasesRes = await DioClient.instance.dio.get(
-        ApiRoutes.purchases,
-        queryParameters: {'limit': 1000}
-      );
-      print('✅ All purchases API success');
-      
-      final purchasesList = _extractList(allPurchasesRes.data);
-      // Calculate total pending dues (amountDue)
-      pendingDues = purchasesList.fold(0.0, (sum, p) => 
-        sum + ((p['amountDue'] as num?)?.toDouble() ?? 0)
-      );
-      print('📊 Total Pending Dues: ₹$pendingDues');
-    } catch (e) {
-      print('❌ All purchases API failed: $e');
-      // If this fails, try calculating from farmers data
-      try {
-        final farmersRes = await DioClient.instance.dio.get(ApiRoutes.farmers);
-        final farmersData = farmersRes.data;
-        List farmersList = [];
-        if (farmersData is List) {
-          farmersList = farmersData;
-        } else if (farmersData is Map && farmersData['data'] is List) {
-          farmersList = farmersData['data'];
-        } else if (farmersData is Map && farmersData['farmers'] is List) {
-          farmersList = farmersData['farmers'];
-        }
-        
-        pendingDues = farmersList.fold(0.0, (sum, f) => 
-          sum + ((f['pendingDues'] as num?)?.toDouble() ?? 0)
-        );
-        print('📊 Pending Dues from farmers: ₹$pendingDues');
-      } catch (e2) {
-        print('❌ Farmers pending dues calculation failed: $e2');
-      }
-    }
-    
-    // 5. Fetch weekly purchases
-    try {
-      final weeklyRes = await DioClient.instance.dio.get(
+      final now = DateTime.now();
+      final startDate =
+          DateTime(now.year, now.month, 1)
+              .toIso8601String()
+              .split('T')[0];
+
+      final pRes = await DioClient.instance.dio.get(
         ApiRoutes.purchases,
         queryParameters: {
-          'startDate': weekStart.toIso8601String(),
-          'endDate': todayEndStr,
-          'limit': 1000,
-        }
+          'page': 1,
+          'limit': 50,
+          'sortOrder': 'desc',
+          'status': 'saved,partial,paid',
+          'startDate': startDate,
+        },
       );
-      print('✅ Weekly purchases API success');
-      
-      final weeklyList = _extractList(weeklyRes.data);
-      
-      // Group by day of week (Mon=0 … Sun=6)
-      final dayTotals = List<double>.filled(7, 0);
-      for (final p in weeklyList) {
-        final dateStr = p['purchaseDate'] ?? p['createdAt'] ?? '';
-        if (dateStr.isEmpty) continue;
-        final date = DateTime.tryParse(dateStr.toString());
-        if (date == null) continue;
-        final dayIdx = date.weekday - 1;
-        dayTotals[dayIdx] += (p['grossTotal'] as num?)?.toDouble() ?? 0;
+      if (pRes.data is Map && pRes.data['data'] is List) {
+        allPurchases = pRes.data['data'] as List;
+      } else if (pRes.data is List) {
+        allPurchases = pRes.data as List;
       }
-      
-      // Normalise to 0–1 for bar heights
-      final maxDay = dayTotals.reduce((a, b) => a > b ? a : b);
-      weeklyNorm = maxDay > 0
-          ? dayTotals.map((v) => (v / maxDay).clamp(0.1, 1.0)).toList()
-          : List<double>.filled(7, 0.1);
+      debugPrint('✅ Purchases loaded: ${allPurchases.length}');
     } catch (e) {
-      print('❌ Weekly purchases API failed: $e');
+      debugPrint('⚠️ Purchases (non-fatal): $e');
     }
+
+    // ── Weekly bar calculation ──────────────────────────────
+    final now = DateTime.now();
+    final weekStart = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - 1));
+    final dayTotals = List<double>.filled(7, 0.0);
+    for (final p in allPurchases) {
+      final dateStr = p['purchaseDate']?.toString()
+          ?? p['createdAt']?.toString() ?? '';
+      final date = DateTime.tryParse(dateStr)?.toLocal();
+      if (date == null) continue;
+      final todayEnd =
+          DateTime(now.year, now.month, now.day + 1);
+      if (date.isBefore(weekStart) ||
+          !date.isBefore(todayEnd)) continue;
+      final idx = (date.weekday - 1).clamp(0, 6);
+      dayTotals[idx] +=
+          (p['finalPayable'] as num?)?.toDouble() ?? 0;
+    }
+    final maxDay = dayTotals.reduce((a, b) => a > b ? a : b);
+    final weeklyNorm = maxDay > 0
+        ? dayTotals
+            .map((v) => (v / maxDay).clamp(0.1, 1.0))
+            .toList()
+        : List<double>.filled(7, 0.1);
+
+    // ── Recent 3 purchases ──────────────────────────────────
+    final recentList = allPurchases.take(3).map((p) {
+      final lines = p['lines'] as List? ?? [];
+      final product = lines.isNotEmpty
+          ? (lines[0]['productName']?.toString() ?? 'Product')
+          : 'Purchase';
+      final farmer = p['farmer'];
+      final farmerName = farmer is Map
+          ? farmer['name']?.toString() ?? 'Unknown'
+          : 'Unknown';
+      return <String, dynamic>{
+        'product': product,
+        'farmer': farmerName,
+        'amount':
+            (p['finalPayable'] as num?)?.toDouble() ?? 0.0,
+        'date': p['purchaseDate']?.toString()
+            ?? p['createdAt']?.toString() ?? '',
+        'status': p['status']?.toString() ?? '',
+        'receiptNumber':
+            p['receiptNumber']?.toString() ?? '',
+      };
+    }).toList();
 
     setState(() {
       _data = _DashboardData(
-        totalFarmers:     farmerCount,
-        todayArrivalKg:   todayKg,
-        todaySalesTotal:  todaySales,
-        totalPendingDues: pendingDues,
-        recentPurchases:  recentPurchases,
-        weeklyArrivals:   weeklyNorm,
+        totalFarmers: totalFarmers,
+        todayPurchaseCount: todayCount,
+        thisMonthValue: monthValue,
+        thisMonthCount: monthCount,
+        totalPendingPayments: pendingPayments,
+        pendingExpenseApprovals: pendingExpenses,
+        recentPurchases: recentList,
+        weeklyArrivals: weeklyNorm,
       );
       _loading = false;
     });
-    
-    print('✅ Dashboard loaded successfully');
-    print('📊 Farmers: $farmerCount, Today Sales: ₹$todaySales, Pending Dues: ₹$pendingDues');
-    
+
   } catch (e) {
-    print('❌ Dashboard load error: $e');
-    setState(() { 
-      _loading = false; 
-      _hasError = true; 
-    });
+    debugPrint('❌ Dashboard failed: $e');
+    setState(() { _loading = false; _hasError = true; });
   }
 }
-
-  // Future<void> _loadDashboard() async {
-  //   setState(() { _loading = true; _hasError = false; });
-  //   try {
-  //     // Today's date range
-  //     final now = DateTime.now();
-  //     final todayStart = DateTime(now.year, now.month, now.day);
-  //     final todayEnd = todayStart.add(const Duration(days: 1));
-  //     final todayStartStr = todayStart.toIso8601String();
-  //     final todayEndStr = todayEnd.toIso8601String();
-
-  //     // Week start (Monday)
-  //     final weekStart = todayStart.subtract(Duration(days: now.weekday - 1));
-
-  //     // ── Run all API calls concurrently ────────────────────
-  //     final results = await Future.wait([
-  //       // 0 — Farmer count
-  //       DioClient.instance.dio.get(ApiRoutes.farmers,
-  //           queryParameters: {'limit': 1, 'page': 1}),
-
-  //       // 1 — Today's purchases (for arrivals + sales)
-  //       DioClient.instance.dio.get(ApiRoutes.purchases, queryParameters: {
-  //         'startDate': todayStartStr,
-  //         'endDate':   todayEndStr,
-  //         'limit':     100,
-  //       }),
-
-  //       // 2 — Recent 3 purchases (any date)
-  //       DioClient.instance.dio.get(ApiRoutes.purchases,
-  //           queryParameters: {'limit': 3, 'sortOrder': 'desc'}),
-
-  //       // 3 — Purchase summary for pending dues
-  //       DioClient.instance.dio.get(ApiRoutes.purchases),
-
-  //       // 4 — Weekly purchases (last 7 days)
-  //       DioClient.instance.dio.get(ApiRoutes.purchases, queryParameters: {
-  //         'startDate': weekStart.toIso8601String(),
-  //         'endDate':   todayEndStr,
-  //         'limit':     500,
-  //       }),
-  //     ]);
-
-  //     // ── Parse farmer count ────────────────────────────────
-  //     int farmerCount = 0;
-  //     final farmerRes = results[0].data;
-  //     if (farmerRes is Map) {
-  //       farmerCount = (farmerRes['total'] as num?)?.toInt() ??
-  //           (farmerRes['pagination']?['total'] as num?)?.toInt() ?? 0;
-  //     }
-
-  //     // ── Parse today's purchases ───────────────────────────
-  //     double todayKg = 0;
-  //     double todaySales = 0;
-  //     final todayRes = results[1].data;
-  //     List todayList = _extractList(todayRes);
-  //     for (final p in todayList) {
-  //       // Sum billed qty from all lines (kg type)
-  //       final lines = p['lines'] as List? ?? [];
-  //       for (final l in lines) {
-  //         if ((l['pricingType'] ?? '') == 'kg') {
-  //           todayKg += (l['billedQty'] as num?)?.toDouble() ?? 0;
-  //         }
-  //       }
-  //       todaySales += (p['finalPayable'] as num?)?.toDouble() ?? 0;
-  //     }
-
-  //     // ── Parse recent 3 purchases ──────────────────────────
-  //     final recentRes = results[2].data;
-  //     final recentList = _extractList(recentRes).take(3).toList();
-  //     final recentPurchases = recentList.map((p) {
-  //       final lines = p['lines'] as List? ?? [];
-  //       final firstProduct = lines.isNotEmpty
-  //           ? (lines[0]['productName'] ?? 'Product')
-  //           : 'Purchase';
-  //       final farmer = p['farmer'];
-  //       final farmerName = farmer is Map
-  //           ? farmer['name'] ?? 'Unknown'
-  //           : 'Unknown';
-  //       return {
-  //         'product': firstProduct,
-  //         'farmer': farmerName,
-  //         'amount': (p['finalPayable'] as num?)?.toDouble() ?? 0,
-  //         'date': p['purchaseDate'] ?? p['createdAt'] ?? '',
-  //         'receiptNumber': p['receiptNumber'] ?? '',
-  //       };
-  //     }).toList();
-
-  //     // ── Parse pending dues from summary ───────────────────
-  //     double pendingDues = 0;
-  //     final summaryRes = results[3].data;
-  //     if (summaryRes is Map) {
-  //       final d = summaryRes['data'];
-  //       if (d is Map) {
-  //         pendingDues = (d['totalDue'] as num?)?.toDouble() ?? 0;
-  //       }
-  //     }
-
-  //     // ── Parse weekly arrivals ─────────────────────────────
-  //     final weeklyRes = results[4].data;
-  //     final weeklyList = _extractList(weeklyRes);
-
-  //     // Group by day of week (Mon=0 … Sun=6)
-  //     final dayTotals = List<double>.filled(7, 0);
-  //     for (final p in weeklyList) {
-  //       final dateStr = p['purchaseDate'] ?? p['createdAt'] ?? '';
-  //       if (dateStr.isEmpty) continue;
-  //       final date = DateTime.tryParse(dateStr.toString());
-  //       if (date == null) continue;
-  //       final dayIdx = date.weekday - 1; // Mon=0
-  //       dayTotals[dayIdx] += (p['grossTotal'] as num?)?.toDouble() ?? 0;
-  //     }
-
-  //     // Normalise to 0–1 for bar heights
-  //     final maxDay = dayTotals.reduce((a, b) => a > b ? a : b);
-  //     final weeklyNorm = maxDay > 0
-  //         ? dayTotals.map((v) => (v / maxDay).clamp(0.1, 1.0)).toList()
-  //         : List<double>.filled(7, 0.1);
-
-  //     setState(() {
-  //       _data = _DashboardData(
-  //         totalFarmers:     farmerCount,
-  //         todayArrivalKg:   todayKg,
-  //         todaySalesTotal:  todaySales,
-  //         totalPendingDues: pendingDues,
-  //         recentPurchases:  recentPurchases,
-  //         weeklyArrivals:   weeklyNorm,
-  //       );
-  //       _loading = false;
-  //     });
-  //   } catch (e) {
-  //     debugPrint('Dashboard load error: $e');
-  //     setState(() { _loading = false; _hasError = true; });
-  //   }
-  // }
-
   List _extractList(dynamic data) {
     if (data is List) return data;
     if (data is Map) {
@@ -952,50 +261,157 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-
                 // ── Header ──────────────────────────────────
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Hello, ${userName.split(' ').first}! 👋',
-                          style: AppTextStyles.headingLarge),
-                      const SizedBox(height: 3),
-                      Text(_todayLabel(), style: AppTextStyles.bodyMedium),
-                    ]),
-                    Row(children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.border),
-                          boxShadow: [BoxShadow(
-                            color: AppColors.shadowLight,
-                            blurRadius: 8, offset: const Offset(0, 2),
-                          )],
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Hello, ${userName.split(' ').first}!',
+                            style: AppTextStyles.headingLarge),
+                        const SizedBox(height: 3),
+                        Text(_todayLabel(), style: AppTextStyles.bodyMedium),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.border),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.shadowLight,
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              )
+                            ],
+                          ),
+                          child: const Icon(Icons.notifications_none_rounded,
+                              color: AppColors.primary, size: 22),
                         ),
-                        child: const Icon(Icons.notifications_none_rounded,
-                            color: AppColors.primary, size: 22),
-                      ),
-                      const SizedBox(width: 10),
-                      Container(
-                        width: 40, height: 40,
-                        decoration: BoxDecoration(
-                          gradient: AppColors.heroGradient,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(auth.user?.initials ?? 'U',
-                              style: const TextStyle(color: Colors.white,
-                                  fontWeight: FontWeight.w700, fontSize: 14,
-                                  fontFamily: 'Poppins')),
-                        ),
-                      ),
-                    ]),
+
+                          GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const LanguageSelectionScreen(),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.shadowLight,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                )
+              ],
+            ),
+            child: const Icon(Icons.language_rounded,
+                color: AppColors.primary, size: 22),
+          ),
+        ),
+                        const SizedBox(width: 10),
+                        
+                        PopupMenuButton<String>(
+      offset: const Offset(0, 45),
+      icon: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          gradient: AppColors.heroGradient,
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: Text(
+            auth.user?.initials ?? 'U',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              fontFamily: 'Poppins'
+            ),
+          ),
+        ),
+      ),
+      onSelected: (value) async {
+        if (value == 'profile') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProfileScreen(user: auth.user!),
+            ),
+          );
+        } else if (value == 'logout') {
+          // Logout logic
+          final confirm = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Logout'),
+              content: const Text('Are you sure you want to logout?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                  child: const Text('Logout'),
+                ),
+              ],
+            ),
+          );
+          
+          if (confirm == true) {
+            await AuthService.instance.logout();
+            if (context.mounted) {
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                AppConstants.routeLogin,
+                (route) => false,
+              );
+            }
+          }
+        }
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: 'profile',
+          child: Row(
+            children: [
+              Icon(Icons.person_outline, size: 20),
+              SizedBox(width: 12),
+              Text('Profile'),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'logout',
+          child: Row(
+            children: [
+              Icon(Icons.logout, size: 20, color: AppColors.error),
+              SizedBox(width: 12),
+              Text('Logout', style: TextStyle(color: AppColors.error)),
+            ],
+          ),
+        ),
+      ],
+    ),
+    const SizedBox(width: 8),
+                      ],
+                    ),
                   ],
                 ),
-
                 const SizedBox(height: 20),
 
                 // ── Hero Banner ──────────────────────────────
@@ -1005,55 +421,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   decoration: BoxDecoration(
                     gradient: AppColors.heroGradient,
                     borderRadius: BorderRadius.circular(20),
-                    boxShadow: [BoxShadow(
-                      color: AppColors.primary.withOpacity(0.28),
-                      blurRadius: 20, offset: const Offset(0, 6),
-                    )],
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withOpacity(0.28),
+                        blurRadius: 20,
+                        offset: const Offset(0, 6),
+                      )
+                    ],
                   ),
-                  child: Row(children: [
-                    Expanded(child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Farming Made Simple,',
-                            style: TextStyle(color: Colors.white70, fontSize: 12,
-                                fontFamily: 'Poppins')),
-                        const Text('Smarter & Sustainable',
-                            style: TextStyle(color: Colors.white, fontSize: 17,
-                                fontWeight: FontWeight.w700, fontFamily: 'Poppins')),
-                        const SizedBox(height: 14),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.25),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Text('Market ERP v1.0',
-                              style: TextStyle(color: Colors.white, fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  fontFamily: 'Poppins')),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Farming Made Simple,',
+                                style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                    fontFamily: 'Poppins')),
+                            const Text('Smarter & Sustainable',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Poppins')),
+                            const SizedBox(height: 14),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.25),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Text('Market ERP v1.0',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      fontFamily: 'Poppins')),
+                            ),
+                          ],
                         ),
-                      ],
-                    )),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.storefront_rounded,
-                          color: Colors.white, size: 36),
-                    ),
-                  ]),
+                      Container(
+                        width: 68,
+                        height: 68,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                          image: const DecorationImage(
+                            image: AssetImage('assets/images/logo3.png'),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-
                 const SizedBox(height: 20),
 
                 // ── KPI Grid ─────────────────────────────────
                 const Text("Today's Overview",
                     style: AppTextStyles.headingMedium),
                 const SizedBox(height: 12),
-
                 if (_loading)
                   _buildKpiShimmer()
                 else
@@ -1065,83 +496,122 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     crossAxisSpacing: 12,
                     childAspectRatio: 1.45,
                     children: [
-                      _KpiCard(
-                        icon: Icons.local_shipping_rounded,
-                        label: "Today's Arrival",
-                        value: _formatKg(_data.todayArrivalKg),
-                        change: _data.todayArrivalKg > 0 ? 'Live' : '—',
-                        positive: true,
-                      ),
-                      _KpiCard(
-                        icon: Icons.people_rounded,
-                        label: 'Total Farmers',
-                        value: _data.totalFarmers.toString(),
-                        change: 'Registered',
-                        positive: true,
-                      ),
-                      _KpiCard(
-                        icon: Icons.account_balance_wallet_rounded,
-                        label: 'Pending Dues',
-                        value: _formatAmount(_data.totalPendingDues),
-                        change: _data.totalPendingDues > 0 ? 'Unpaid' : 'Clear',
-                        positive: _data.totalPendingDues == 0,
-                      ),
-                      _KpiCard(
-                        icon: Icons.trending_up_rounded,
-                        label: "Today's Sales",
-                        value: _formatAmount(_data.todaySalesTotal),
-                        change: _data.todaySalesTotal > 0 ? 'Live' : '—',
-                        positive: true,
-                      ),
+       _KpiCard(
+  icon: Icons.local_shipping_rounded,
+  label: "Today's Purchases",
+  value: _data.todayPurchaseCount.toString(),
+  change: _data.todayPurchaseCount > 0 ? 'Today' : 'None yet',
+  positive: true,
+),
+_KpiCard(
+  icon: Icons.people_rounded,
+  label: 'Active Farmers',
+  value: _data.totalFarmers.toString(),
+  change: 'Registered',
+  positive: true,
+),
+_KpiCard(
+  icon: Icons.account_balance_wallet_rounded,
+  label: 'Pending Dues',
+  value: _formatAmount(_data.totalPendingPayments),
+  change: _data.totalPendingPayments > 0 ? 'Unpaid' : 'All clear',
+  positive: _data.totalPendingPayments == 0,
+),
+_KpiCard(
+  icon: Icons.trending_up_rounded,
+  label: 'This Month',
+  value: _formatAmount(_data.thisMonthValue),
+  change: '${_data.thisMonthCount} purchases',
+  positive: true,
+),
                     ],
                   ),
-
                 const SizedBox(height: 20),
 
-                // ── Quick Actions ────────────────────────────
-                const Text('Quick Actions', style: AppTextStyles.headingMedium),
-                const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(child: _QuickAction(
-                    icon: Icons.add_circle_rounded,
-                    label: 'New Purchase',
-                    color: AppColors.primary,
-                    onTap: () async {
-                      final result = await Navigator.push(context,
-                          MaterialPageRoute(
-                              builder: (_) => const NewPurchaseScreen()));
-                      if (result == true) _loadDashboard();
-                    },
-                  )),
-                  const SizedBox(width: 10),
-                  Expanded(child: _QuickAction(
-                    icon: Icons.person_add_rounded,
-                    label: 'Add Farmer',
-                    color: AppColors.secondary,
-                    onTap: () async {
-                      final result = await Navigator.push(context,
-                          MaterialPageRoute(
-                              builder: (_) => const FarmerRegistrationScreen()));
-                      if (result == true) _loadDashboard();
-                    },
-                  )),
-                  const SizedBox(width: 10),
-                  Expanded(child: _QuickAction(
-                    icon: Icons.payments_rounded,
-                    label: 'Payment',
-                    color: AppColors.info,
-                    onTap: () {
-                      // TODO: navigate to payment screen (M-09)
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Payment screen coming soon'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
-                  )),
-                ]),
-
+                // ── Quick Actions (exactly 3 buttons) ───────
+             // ── Quick Actions (5 buttons including Reports) ───────
+const Text('Quick Actions', style: AppTextStyles.headingMedium),
+const SizedBox(height: 12),
+Row(
+  children: [
+    Expanded(
+      child: _QuickAction(
+        icon: Icons.add_circle_rounded,
+        label: 'New Purchase',
+        color: AppColors.primary,
+        onTap: () async {
+          final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const NewPurchaseScreen()));
+          if (result == true) _loadDashboard();
+        },
+      ),
+    ),
+    const SizedBox(width: 10),
+    Expanded(
+      child: _QuickAction(
+        icon: Icons.person_add_rounded,
+        label: 'Add Farmer',
+        color: AppColors.secondary,
+        onTap: () async {
+          final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) =>
+                      const FarmerRegistrationScreen()));
+          if (result == true) _loadDashboard();
+        },
+      ),
+    ),
+    const SizedBox(width: 10),
+    Expanded(
+      child: _QuickAction(
+        icon: Icons.inventory_2_rounded,
+        label: 'Inventory',
+        color: AppColors.info,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const InventoryListScreen()),
+          );
+        },
+      ),
+    ),
+    const SizedBox(width: 10),
+    Expanded(
+      child: _QuickAction(
+        icon: Icons.payments_rounded,
+        label: 'Ledger',
+        color: AppColors.info,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const LedgerScreen(),
+            ),
+          );
+        },
+      ),
+    ),
+    const SizedBox(width: 10),
+    Expanded(
+      child: _QuickAction(
+        icon: Icons.assessment_rounded,
+        label: 'Reports',
+        color: const Color(0xFF9C27B0),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const ReportsScreen(),
+            ),
+          );
+        },
+      ),
+    ),
+  ],
+),
                 const SizedBox(height: 20),
 
                 // ── Weekly Bar Chart ──────────────────────────
@@ -1158,14 +628,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Column(crossAxisAlignment: CrossAxisAlignment.start,
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text('Weekly Arrivals',
                                   style: AppTextStyles.headingSmall),
                               Text('This week',
                                   style: AppTextStyles.bodySmall
                                       .copyWith(color: AppColors.textHint)),
-                            ]),
+                            ],
+                          ),
                           Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 10, vertical: 4),
@@ -1173,23 +645,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               color: AppColors.successSurface,
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Row(children: [
-                              Icon(Icons.trending_up_rounded,
-                                  color: AppColors.success, size: 13),
-                              SizedBox(width: 4),
-                              Text('Live',
-                                  style: TextStyle(
-                                      color: AppColors.success, fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      fontFamily: 'Poppins')),
-                            ]),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.trending_up_rounded,
+                                    color: AppColors.success, size: 13),
+                                SizedBox(width: 4),
+                                Text('Live',
+                                    style: TextStyle(
+                                        color: AppColors.success,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        fontFamily: 'Poppins')),
+                              ],
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 20),
                       if (_loading)
-                        Container(height: 120,
-                            color: AppColors.surfaceVariant)
+                        Container(
+                            height: 120, color: AppColors.surfaceVariant)
                       else
                         SizedBox(
                           height: 120,
@@ -1197,12 +672,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
-                              _Bar(day: 'Mon', pct: _data.weeklyArrivals[0]),
-                              _Bar(day: 'Tue', pct: _data.weeklyArrivals[1]),
-                              _Bar(day: 'Wed', pct: _data.weeklyArrivals[2]),
-                              _Bar(day: 'Thu', pct: _data.weeklyArrivals[3]),
-                              _Bar(day: 'Fri', pct: _data.weeklyArrivals[4]),
-                              _Bar(day: 'Sat', pct: _data.weeklyArrivals[5]),
+                              _Bar(
+                                  day: 'Mon', pct: _data.weeklyArrivals[0]),
+                              _Bar(
+                                  day: 'Tue', pct: _data.weeklyArrivals[1]),
+                              _Bar(
+                                  day: 'Wed', pct: _data.weeklyArrivals[2]),
+                              _Bar(
+                                  day: 'Thu', pct: _data.weeklyArrivals[3]),
+                              _Bar(
+                                  day: 'Fri', pct: _data.weeklyArrivals[4]),
+                              _Bar(
+                                  day: 'Sat', pct: _data.weeklyArrivals[5]),
                               _Bar(
                                 day: 'Sun',
                                 pct: _data.weeklyArrivals[6],
@@ -1218,11 +699,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text('Total this week',
-                              style: TextStyle(fontSize: 12,
+                              style: TextStyle(
+                                  fontSize: 12,
                                   color: AppColors.textHint,
                                   fontFamily: 'Poppins')),
                           Text(
-                            _formatAmount(_data.todaySalesTotal),
+                            _formatAmount(_data.thisMonthValue),
                             style: AppTextStyles.numberSmall
                                 .copyWith(color: AppColors.primary),
                           ),
@@ -1231,67 +713,74 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 20),
 
                 // ── Recent Purchases ─────────────────────────
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Recent Purchases',
-                        style: AppTextStyles.headingMedium),
-                    TextButton(
-                      onPressed: () {
-                        // Navigate to purchase list tab
-                      },
-                      child: const Text('View All',
-                          style: TextStyle(color: AppColors.primary,
-                              fontSize: 13, fontFamily: 'Poppins')),
-                    ),
-                  ]),
-                const SizedBox(height: 8),
-
-                if (_loading)
-                  ...List.generate(3, (_) => _buildPurchaseShimmer())
-                else if (_data.recentPurchases.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(children: [
-                      const Icon(Icons.receipt_long_outlined,
-                          size: 40, color: AppColors.textHint),
-                      const SizedBox(height: 8),
-                      const Text('No purchases yet today',
-                          style: TextStyle(color: AppColors.textSecondary,
-                              fontFamily: 'Poppins', fontSize: 13)),
-                      const SizedBox(height: 12),
-                      ElevatedButton.icon(
-                        onPressed: () async {
-                          final result = await Navigator.push(context,
-                              MaterialPageRoute(
-                                  builder: (_) => const NewPurchaseScreen()));
-                          if (result == true) _loadDashboard();
-                        },
-                        icon: const Icon(Icons.add, size: 16),
-                        label: const Text('New Purchase',
-                            style: TextStyle(fontFamily: 'Inter')),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
-                    ]),
-                  )
-                else
-                  ..._data.recentPurchases.map((p) => _RecentPurchaseTile(
-                    productName: p['product'] as String,
-                    farmerName: p['farmer'] as String,
-                    amount: _formatAmount(p['amount'] as double),
-                    timeAgo: _timeAgo(p['date'] as String),
-                  )),
-
-                const SizedBox(height: 20),
+                // Row(
+                //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                //   children: [
+                //     const Text('Recent Purchases',
+                //         style: AppTextStyles.headingMedium),
+                //     TextButton(
+                //       onPressed: () {
+                //         // Navigate to purchase list tab
+                //       },
+                //       child: const Text('View All',
+                //           style: TextStyle(
+                //               color: AppColors.primary,
+                //               fontSize: 13,
+                //               fontFamily: 'Poppins')),
+                //     ),
+                //   ],
+                // ),
+                // const SizedBox(height: 8),
+                // if (_loading)
+                //   ...List.generate(3, (_) => _buildPurchaseShimmer())
+                // else if (_data.recentPurchases.isEmpty)
+                //   Container(
+                //     padding: const EdgeInsets.all(24),
+                //     child: Column(
+                //       children: [
+                //         const Icon(Icons.receipt_long_outlined,
+                //             size: 40, color: AppColors.textHint),
+                //         const SizedBox(height: 8),
+                //         const Text('No purchases yet today',
+                //             style: TextStyle(
+                //                 color: AppColors.textSecondary,
+                //                 fontFamily: 'Poppins',
+                //                 fontSize: 13)),
+                //         const SizedBox(height: 12),
+                //         ElevatedButton.icon(
+                //           onPressed: () async {
+                //             final result = await Navigator.push(
+                //                 context,
+                //                 MaterialPageRoute(
+                //                     builder: (_) =>
+                //                         const NewPurchaseScreen()));
+                //             if (result == true) _loadDashboard();
+                //           },
+                //           icon: const Icon(Icons.add, size: 16),
+                //           label: const Text('New Purchase',
+                //               style: TextStyle(fontFamily: 'Inter')),
+                //           style: ElevatedButton.styleFrom(
+                //             backgroundColor: AppColors.primary,
+                //             foregroundColor: Colors.white,
+                //             elevation: 0,
+                //             shape: RoundedRectangleBorder(
+                //                 borderRadius: BorderRadius.circular(10)),
+                //           ),
+                //         ),
+                //       ],
+                //     ),
+                //   )
+                // else
+                //   ..._data.recentPurchases.map((p) => _RecentPurchaseTile(
+                //         productName: p['product'] as String,
+                //         farmerName: p['farmer'] as String,
+                //         amount: _formatAmount(p['amount'] as double),
+                //         timeAgo: _timeAgo(p['date'] as String),
+                //       )),
+                // const SizedBox(height: 20),
 
                 // ── Error state ──────────────────────────────
                 if (_hasError)
@@ -1300,29 +789,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.errorSurface,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.error.withOpacity(0.3)),
+                      border: Border.all(
+                          color: AppColors.error.withOpacity(0.3)),
                     ),
-                    child: Row(children: [
-                      const Icon(Icons.error_outline,
-                          color: AppColors.error, size: 18),
-                      const SizedBox(width: 10),
-                      const Expanded(
-                        child: Text(
-                          'Some data could not be loaded. Pull down to retry.',
-                          style: TextStyle(color: AppColors.error,
-                              fontSize: 12, fontFamily: 'Poppins'),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline,
+                            color: AppColors.error, size: 18),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            'Some data could not be loaded. Pull down to retry.',
+                            style: TextStyle(
+                                color: AppColors.error,
+                                fontSize: 12,
+                                fontFamily: 'Poppins'),
+                          ),
                         ),
-                      ),
-                      GestureDetector(
-                        onTap: _loadDashboard,
-                        child: const Text('Retry',
-                            style: TextStyle(color: AppColors.error,
-                                fontSize: 12, fontWeight: FontWeight.w600,
-                                fontFamily: 'Poppins')),
-                      ),
-                    ]),
+                        GestureDetector(
+                          onTap: _loadDashboard,
+                          child: const Text('Retry',
+                              style: TextStyle(
+                                  color: AppColors.error,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: 'Poppins')),
+                        ),
+                      ],
+                    ),
                   ),
-
                 const SizedBox(height: 20),
               ],
             ),
@@ -1342,18 +837,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
       childAspectRatio: 1.45,
-      children: List.generate(4, (_) => Container(
-        decoration: BoxDecoration(
-          color: AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
+      children: List.generate(
+        4,
+        (_) => Container(
+          decoration: BoxDecoration(
+            color: AppColors.surfaceVariant,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: const Center(
+            child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                    color: AppColors.primary, strokeWidth: 2)),
+          ),
         ),
-        child: const Center(
-          child: SizedBox(width: 20, height: 20,
-            child: CircularProgressIndicator(
-                color: AppColors.primary, strokeWidth: 2)),
-        ),
-      )),
+      ),
     );
   }
 
@@ -1371,8 +871,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   String _todayLabel() {
     final d = DateTime.now();
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     return '${days[d.weekday % 7]}, ${d.day} ${months[d.month - 1]} ${d.year}';
   }
@@ -1388,8 +900,11 @@ class _KpiCard extends StatelessWidget {
   final bool positive;
 
   const _KpiCard({
-    required this.icon, required this.label,
-    required this.value, required this.change, required this.positive,
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.change,
+    required this.positive,
   });
 
   @override
@@ -1404,40 +919,52 @@ class _KpiCard extends StatelessWidget {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
-        boxShadow: [BoxShadow(
-          color: AppColors.shadowLight, blurRadius: 8,
-          offset: const Offset(0, 2),
-        )],
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadowLight,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          )
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: AppColors.primarySurface,
-                borderRadius: BorderRadius.circular(9),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: AppColors.primarySurface,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(icon, color: AppColors.primary, size: 18),
               ),
-              child: Icon(icon, color: AppColors.primary, size: 18),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-              decoration: BoxDecoration(
-                color: badgeColor,
-                borderRadius: BorderRadius.circular(8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: badgeColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(change,
+                    style: TextStyle(
+                        color: textColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'Poppins')),
               ),
-              child: Text(change,
-                  style: TextStyle(
-                      color: textColor, fontSize: 10,
-                      fontWeight: FontWeight.w600, fontFamily: 'Poppins')),
-            ),
-          ]),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(value, style: AppTextStyles.numberSmall),
-            Text(label, style: AppTextStyles.labelSmall),
-          ]),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(value, style: AppTextStyles.numberSmall),
+              Text(label, style: AppTextStyles.labelSmall),
+            ],
+          ),
         ],
       ),
     );
@@ -1452,37 +979,45 @@ class _QuickAction extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
   const _QuickAction({
-    required this.icon, required this.label,
-    required this.color, required this.onTap,
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          padding: const EdgeInsets.all(10),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.12),
-            shape: BoxShape.circle,
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border),
           ),
-          child: Icon(icon, color: color, size: 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 22),
+              ),
+              const SizedBox(height: 8),
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                      fontFamily: 'Poppins'),
+                  textAlign: TextAlign.center),
+            ],
+          ),
         ),
-        const SizedBox(height: 8),
-        Text(label,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary, fontFamily: 'Poppins'),
-            textAlign: TextAlign.center),
-      ]),
-    ),
-  );
+      );
 }
 
 // ── Bar Chart ─────────────────────────────────────────────────
@@ -1494,42 +1029,51 @@ class _Bar extends StatelessWidget {
   const _Bar({required this.day, required this.pct, this.isToday = false});
 
   @override
-  Widget build(BuildContext context) => Column(children: [
-    if (isToday)
-      Container(
-        margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-        decoration: BoxDecoration(
-          color: AppColors.primary,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: const Text('Now',
-            style: TextStyle(color: Colors.white, fontSize: 8,
-                fontFamily: 'Poppins')),
-      )
-    else
-      const SizedBox(height: 18),
-    Flexible(
-      child: Container(
+  Widget build(BuildContext context) => SizedBox(
         width: 34,
-        height: 120 * pct,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: isToday
-                ? [AppColors.secondary, AppColors.primary]
-                : [AppColors.primaryLight, AppColors.primary],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          borderRadius: BorderRadius.circular(8),
+        height: 120,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (isToday)
+              Container(
+                margin: const EdgeInsets.only(bottom: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text('Now',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontFamily: 'Poppins')),
+              ),
+            const Spacer(),
+            Container(
+              width: 34,
+              height: 100 * pct,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isToday
+                      ? [AppColors.secondary, AppColors.primary]
+                      : [AppColors.primaryLight, AppColors.primary],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(day,
+                style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textHint,
+                    fontFamily: 'Poppins')),
+          ],
         ),
-      ),
-    ),
-    const SizedBox(height: 6),
-    Text(day,
-        style: const TextStyle(fontSize: 10, color: AppColors.textHint,
-            fontFamily: 'Poppins')),
-  ]);
+      );
 }
 
 // ── Recent Purchase Tile ──────────────────────────────────────
@@ -1556,33 +1100,41 @@ class _RecentPurchaseTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
       ),
-      child: Row(children: [
-        Container(
-          width: 44, height: 44,
-          decoration: BoxDecoration(
-            color: AppColors.primarySurface,
-            borderRadius: BorderRadius.circular(12),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.agriculture_rounded,
+                color: AppColors.primary, size: 22),
           ),
-          child: const Icon(Icons.agriculture_rounded,
-              color: AppColors.primary, size: 22),
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(productName, style: AppTextStyles.labelLarge),
-            const SizedBox(height: 2),
-            Text('Farmer: $farmerName', style: AppTextStyles.bodySmall),
-          ],
-        )),
-        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(amount,
-              style: AppTextStyles.labelLarge
-                  .copyWith(color: AppColors.primaryDark)),
-          const SizedBox(height: 2),
-          Text(timeAgo, style: AppTextStyles.bodySmall),
-        ]),
-      ]),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(productName, style: AppTextStyles.labelLarge),
+                const SizedBox(height: 2),
+                Text('Farmer: $farmerName', style: AppTextStyles.bodySmall),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(amount,
+                  style: AppTextStyles.labelLarge
+                      .copyWith(color: AppColors.primaryDark)),
+              const SizedBox(height: 2),
+              Text(timeAgo, style: AppTextStyles.bodySmall),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

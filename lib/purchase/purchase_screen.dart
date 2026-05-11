@@ -7,6 +7,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import 'package:agr_market/purchase/purchase_controller.dart';
+import 'package:agr_market/receipt/receipt_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -190,8 +191,8 @@ void _confirmForceDelete(PurchaseController controller) {
                                     color: Colors.white.withOpacity(0.2),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
-                                  child: const Icon(Icons.arrow_back_rounded,
-                                      color: Colors.white, size: 20),
+                                 child: const Icon(Icons.arrow_back,
+                                color: Colors.white, size: 20),
                                 ),
                               ),
                               const SizedBox(width: 14),
@@ -302,11 +303,19 @@ void _confirmForceDelete(PurchaseController controller) {
       controller.nextStep();
     } else {
       final success = await controller.savePurchase();
-      if (success && mounted) {
-        _showSnack(context, 'Purchase saved! 🎉', success: true);
-        await Future.delayed(const Duration(milliseconds: 800));
-        if (mounted) Navigator.pop(context, true);
-      } else if (controller.errorMessage != null && mounted) {
+if (success && mounted) {
+  // Navigate directly to ReceiptScreen
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (_) => ReceiptScreen(
+        purchaseId: controller.savedPurchaseId!,
+        farmerName: controller.selectedFarmer?.name,
+        farmerMobile: controller.selectedFarmer?.mobile,
+      ),
+    ),
+  );
+} else if (controller.errorMessage != null && mounted) {
         _showSnack(context, controller.errorMessage!, success: false);
       }
     }
@@ -451,44 +460,82 @@ void _confirmForceDelete(PurchaseController controller) {
 
   // ── STEP 0 — Select Farmer ────────────────────────────────
 
-  Widget _buildStep0Farmer(PurchaseController controller) {
-    return Column(
-      key: const ValueKey('s0'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _stepHeader('👨‍🌾 Select Farmer', 'Choose the farmer for this purchase'),
-        const SizedBox(height: 20),
-        if (controller.loadingFarmers)
-          const Center(child: Padding(
-            padding: EdgeInsets.all(24),
-            child: CircularProgressIndicator(color: AppColors.primary),
-          ))
-        else if (controller.farmers.isEmpty)
-          Center(child: Column(children: [
-            const Icon(Icons.people_outline,
-                size: 48, color: AppColors.textHint),
-            const SizedBox(height: 8),
-            const Text('No farmers found. Add a farmer first.',
-                style: TextStyle(color: AppColors.textSecondary,
-                    fontFamily: 'Poppins', fontSize: 13)),
-          ]))
-        else
-          ...controller.farmers.map((f) => _FarmerSelectTile(
-            farmer: f,
-            isSelected: controller.selectedFarmer?.id == f.id,
-            onTap: () => controller.selectFarmer(f),
-          )),
-        if (controller.errorMessage != null && controller.currentStep == 0)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Text(
-              controller.errorMessage!,
-              style: const TextStyle(color: AppColors.error, fontSize: 12),
+Widget _buildStep0Farmer(PurchaseController controller) {
+  return Column(
+    key: const ValueKey('s0'),
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _stepHeader(' Select Farmer', 'Choose the farmer for this purchase'),
+      const SizedBox(height: 20),
+      
+      // Add search field here
+      Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: TextField(
+          decoration: InputDecoration(
+            hintText: 'Search by name or mobile number',
+            prefixIcon: const Icon(Icons.search, size: 20),
+            suffixIcon: controller.searchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, size: 20),
+                    onPressed: () {
+                      controller.clearFarmerSearch();
+                    },
+                  )
+                : null,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.border),
             ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.primary),
+            ),
+            filled: true,
+            fillColor: AppColors.surface,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
-      ],
-    );
-  }
+          onChanged: (value) {
+            controller.searchFarmers(value);
+          },
+        ),
+      ),
+      
+      if (controller.loadingFarmers)
+        const Center(child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ))
+      else if (controller.farmers.isEmpty)
+        Center(child: Column(children: [
+          const Icon(Icons.people_outline,
+              size: 48, color: AppColors.textHint),
+          const SizedBox(height: 8),
+          const Text('No farmers found. Add a farmer first.',
+              style: TextStyle(color: AppColors.textSecondary,
+                  fontFamily: 'Poppins', fontSize: 13)),
+        ]))
+      else
+        ...controller.farmers.map((f) => _FarmerSelectTile(
+          farmer: f,
+          isSelected: controller.selectedFarmer?.id == f.id,
+          onTap: () => controller.selectFarmer(f),
+        )),
+      if (controller.errorMessage != null && controller.currentStep == 0)
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Text(
+            controller.errorMessage!,
+            style: const TextStyle(color: AppColors.error, fontSize: 12),
+          ),
+        ),
+    ],
+  );
+}
 
   // ── STEP 1 — Product Lines ────────────────────────────────
 
@@ -497,7 +544,7 @@ void _confirmForceDelete(PurchaseController controller) {
       key: const ValueKey('s1'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _stepHeader('📦 Add Products', 'Add one or more product lines'),
+        _stepHeader('Add Products', 'Add one or more product lines'),
         const SizedBox(height: 16),
         ...controller.lines.map((line) => _ProductLineCard(
           line: line,
@@ -570,7 +617,7 @@ void _confirmForceDelete(PurchaseController controller) {
       key: const ValueKey('s2'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _stepHeader('📊 Deductions', 'Apply charges to calculate final payable'),
+        _stepHeader('Deductions', 'Apply charges to calculate final payable'),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1077,17 +1124,23 @@ class _ProductLineCardState extends State<_ProductLineCard> {
           children: _pricingTypes.map((pt) {
             final selected = widget.line.pricingType == pt.$1;
             return GestureDetector(
-            onTap: () {
+ onTap: () {
+  if (pt.$1 != widget.line.pricingType) {
+    _qtyCtrl.clear();
+    _bagsCtrl.clear();
+    _weightCtrl.clear();
+    _qualCtrl.clear();
+  }
   final updatedLine = widget.line.copyWith(
     pricingType: pt.$1,
     productName: _nameCtrl.text,
     rate: double.tryParse(_rateCtrl.text) ?? 0,
-    actualQty: double.tryParse(_qtyCtrl.text) ?? 0,
-    bags: double.tryParse(_bagsCtrl.text) ?? 0,
-    weightPerBag: double.tryParse(_weightCtrl.text) ?? 0,
-    qualityDeduction: double.tryParse(_qualCtrl.text) ?? 0,
-     );
-         widget.onChanged(updatedLine); 
+    actualQty: 0,
+    bags: 0,
+    weightPerBag: 0,
+    qualityDeduction: 0,
+  );
+  widget.onChanged(updatedLine);
 },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
@@ -1244,7 +1297,7 @@ class _ProductLineCardState extends State<_ProductLineCard> {
 
 // ── Deduction Field ───────────────────────────────────────────
 
-class _DeductionField extends StatelessWidget {
+class _DeductionField extends StatefulWidget {
   final String label;
   final IconData icon;
   final double value;
@@ -1260,51 +1313,106 @@ class _DeductionField extends StatelessWidget {
   });
 
   @override
+  State<_DeductionField> createState() => _DeductionFieldState();
+}
+
+class _DeductionFieldState extends State<_DeductionField> {
+  late final TextEditingController _ctrl;
+  bool _hasFocus = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(
+      text: widget.value > 0 ? widget.value.toStringAsFixed(2) : '',
+    );
+  }
+
+  @override
+  void didUpdateWidget(_DeductionField old) {
+    super.didUpdateWidget(old);
+    // Only sync from outside if the field isn't focused (e.g. auto-fill from advance)
+    if (!_hasFocus && old.value != widget.value) {
+      _ctrl.text = widget.value > 0 ? widget.value.toStringAsFixed(2) : '';
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final ctrl = TextEditingController(
-        text: value > 0 ? value.toStringAsFixed(2) : '');
-    
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(children: [
-        Icon(icon, color: AppColors.textHint, size: 18),
+        Icon(widget.icon, color: AppColors.textHint, size: 18),
         const SizedBox(width: 10),
         Expanded(
           flex: 2,
-          child: Text(label,
-              style: const TextStyle(fontSize: 13, color: AppColors.textPrimary,
-                  fontFamily: 'Poppins')),
+          child: Text(
+            widget.label,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textPrimary,
+              fontFamily: 'Poppins',
+            ),
+          ),
         ),
         Expanded(
           flex: 2,
-          child: TextFormField(
-            controller: ctrl,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
-            onChanged: (v) => onChanged(double.tryParse(v) ?? 0),
-            textAlign: TextAlign.right,
-            style: const TextStyle(fontSize: 13, color: AppColors.textPrimary,
-                fontFamily: 'Poppins', fontWeight: FontWeight.w600),
-            decoration: InputDecoration(
-              hintText: hint ?? '0.00',
-              hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 12),
-              prefixText: '₹ ',
-              prefixStyle: const TextStyle(color: AppColors.textSecondary,
-                  fontSize: 13, fontFamily: 'Poppins'),
-              filled: true,
-              fillColor: AppColors.surfaceVariant,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              border: OutlineInputBorder(
+          child: Focus(
+            onFocusChange: (focused) => setState(() => _hasFocus = focused),
+            child: TextFormField(
+              controller: _ctrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+              ],
+              onChanged: (v) => widget.onChanged(double.tryParse(v) ?? 0),
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textPrimary,
+                fontFamily: 'Poppins',
+                fontWeight: FontWeight.w600,
+              ),
+              decoration: InputDecoration(
+                hintText: widget.hint ?? '0',
+                hintStyle: const TextStyle(
+                  color: AppColors.textHint,
+                  fontSize: 12,
+                ),
+                prefixText: '₹ ',
+                prefixStyle: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  fontFamily: 'Poppins',
+                ),
+                filled: true,
+                fillColor: AppColors.surfaceVariant,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
+                border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border)),
-              enabledBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border)),
-              focusedBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: AppColors.primary, width: 1.5)),
+                  borderSide: const BorderSide(
+                    color: AppColors.primary,
+                    width: 1.5,
+                  ),
+                ),
+              ),
             ),
           ),
         ),

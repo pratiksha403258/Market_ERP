@@ -784,12 +784,50 @@ class _FarmerRegistrationScreenState extends State<FarmerRegistrationScreen>
   }
 
   void _nextStep() {
-    if (_currentStep < 2) {
-      setState(() => _currentStep++);
-    } else {
-      _saveFarmer();
+  // Validate current step before proceeding
+  if (_currentStep == 0) {
+    // Validate Step 0 (Basic Info)
+    if (_nameCtrl.text.trim().isEmpty) {
+      _showFieldError('farmer_name');
+      return;
+    }
+    if (_mobileCtrl.text.trim().length != 10) {
+      _showFieldError('mobile');
+      return;
     }
   }
+  
+  // For Step 1 & 2 - No required fields, but can add validation if needed
+  // if (_currentStep == 1) { ... }
+  // if (_currentStep == 2) { ... }
+  
+  if (_currentStep < 2) {
+    setState(() => _currentStep++);
+  } else {
+    _saveFarmer();
+  }
+}
+
+// Helper method to show field errors
+void _showFieldError(String field) {
+  final lang = context.read<LanguageProvider>();
+  String message;
+  if (field == 'farmer_name') {
+    message = '${lang.t("farmer_name")} ${lang.t("required")}';
+  } else {
+    message = '${lang.t("mobile")} ${lang.t("required")} (10 digits)';
+  }
+  
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(message, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13)),
+      backgroundColor: AppColors.error,
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.all(16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ),
+  );
+}
 
   void _prevStep() {
     if (_currentStep > 0) {
@@ -800,175 +838,174 @@ class _FarmerRegistrationScreenState extends State<FarmerRegistrationScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
-    final lang = context.watch<LanguageProvider>();
-    final provider = context.watch<FarmerProvider>();
-    final size = MediaQuery.of(context).size;
+Widget build(BuildContext context) {
+  final lang = context.watch<LanguageProvider>();
+  final provider = context.watch<FarmerProvider>();
+  final size = MediaQuery.of(context).size;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Stack(
-        children: [
-          // ── Header ──────────────────────────
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              height: size.height * 0.28,
-              decoration: const BoxDecoration(
-                gradient: AppColors.primaryGradient,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(40),
-                  bottomRight: Radius.circular(40),
-                ),
+  return Scaffold(
+    backgroundColor: AppColors.background,
+    body: Stack(
+      children: [
+        // ── Header ──────────────────────────
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            height: size.height * 0.28,
+            decoration: const BoxDecoration(
+              gradient: AppColors.primaryGradient,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(40),
+                bottomRight: Radius.circular(40),
               ),
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      GestureDetector(
-                        onTap: _prevStep,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(Icons.arrow_back_rounded,
-                              color: Colors.white, size: 20),
-                        ),
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                   GestureDetector(
+  onTap: _prevStep,
+  behavior: HitTestBehavior.translucent, // This ensures it captures taps
+  child: Container(
+    padding: const EdgeInsets.all(8),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.2),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+  ),
+),
+                    const Spacer(),
+                    Text(
+                      lang.t('add_farmer'),
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
                       ),
-                      const Spacer(),
-                      Text(
-                        lang.t('add_farmer'),
-                        style: const TextStyle(
-                          fontFamily: 'Poppins',
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                        ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${lang.t('step')} ${_currentStep + 1} ${lang.t('of')} 3',
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        color: Colors.white70,
+                        fontSize: 13,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${lang.t('step')} ${_currentStep + 1} ${lang.t('of')} 3',
-                        style: const TextStyle(
-                          fontFamily: 'Poppins',
-                          color: Colors.white70,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      _buildStepDots(),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 14),
+                    _buildStepDots(),
+                  ],
                 ),
               ),
             ),
           ),
+        ),
 
-          // ── Form ────────────────────────────
-          Positioned.fill(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  SizedBox(height: size.height * 0.24),
-                  FadeTransition(
-                    opacity: _fadeAnim,
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 20),
-                      padding: const EdgeInsets.all(22),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withOpacity(0.10),
-                            blurRadius: 30,
-                            offset: const Offset(0, 8),
+        // ── Form ────────────────────────────
+        Positioned.fill(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                SizedBox(height: size.height * 0.24),
+                FadeTransition(
+                  opacity: _fadeAnim,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 20),
+                    padding: const EdgeInsets.all(22),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withOpacity(0.10),
+                          blurRadius: 30,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        transitionBuilder: (child, anim) => FadeTransition(
+                          opacity: anim,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0.06, 0),
+                              end: Offset.zero,
+                            ).animate(anim),
+                            child: child,
                           ),
-                        ],
+                        ),
+                        child: _buildCurrentStep(lang),
                       ),
-                      child: Form(
-                        key: _formKey,
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 300),
-                          transitionBuilder: (child, anim) => FadeTransition(
-                            opacity: anim,
-                            child: SlideTransition(
-                              position: Tween<Offset>(
-                                begin: const Offset(0.06, 0),
-                                end: Offset.zero,
-                              ).animate(anim),
-                              child: child,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // ── Action button ──────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: provider.isCreating ? null : _nextStep,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: AppColors.primary.withOpacity(0.6),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: provider.isCreating
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2.5),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  _currentStep < 2 ? lang.t('continue') : lang.t('save'),
+                                  style: const TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  _currentStep < 2
+                                      ? Icons.arrow_forward_rounded
+                                      : Icons.check_rounded,
+                                  size: 18,
+                                ),
+                              ],
                             ),
-                          ),
-                          child: _buildCurrentStep(lang),
-                        ),
-                      ),
                     ),
                   ),
-                  const SizedBox(height: 24),
-
-                  // ── Action button ──────────────────
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: provider.isCreating ? null : _nextStep,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: AppColors.primary.withOpacity(0.6),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: provider.isCreating
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                    color: Colors.white, strokeWidth: 2.5),
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    _currentStep < 2 ? lang.t('continue') : lang.t('save'),
-                                    style: const TextStyle(
-                                      fontFamily: 'Poppins',
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Icon(
-                                    _currentStep < 2
-                                        ? Icons.arrow_forward_rounded
-                                        : Icons.check_rounded,
-                                    size: 18,
-                                  ),
-                                ],
-                              ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                ],
-              ),
+                ),
+                const SizedBox(height: 40),
+              ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
+        ),
+      ],
+    ),
+  );
+}
   // ── Step dots indicator ───────────────────
   Widget _buildStepDots() {
     return Row(

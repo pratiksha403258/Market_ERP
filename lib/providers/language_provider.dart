@@ -130,9 +130,12 @@ class LanguageProvider extends ChangeNotifier {
     'field_required': 'This field is required',
 
 
+    // ignore: equal_keys_in_map
     'add_farmer': 'Add New Farmer',
   // ... existing translations ...
+  // ignore: equal_keys_in_map
   'no_farmers_found': 'No farmers found',
+  // ignore: equal_keys_in_map
   'add_first_farmer': 'Add Your First Farmer',
   
   // Add these new translations:
@@ -141,7 +144,59 @@ class LanguageProvider extends ChangeNotifier {
   'clear_search': 'Clear search',
   
   // Success/Error messages
+  // ignore: equal_keys_in_map
   'success': 'Success',
+
+
+  // Inside _englishTranslations map, after existing entries:
+'ledger_title': 'Farmer Ledger',
+'ledger_subtitle': 'Tap any farmer to view full ledger & download PDF',
+'search_hint_ledger': 'Search by name or mobile...',
+'due_short': 'Due',
+'clear_short': 'Clear',
+// ignore: equal_keys_in_map
+'no_matching_farmers': 'No farmers match',
+// ignore: equal_keys_in_map
+'no_farmers_found': 'No farmers found',
+'farmers': 'farmers',
+'select_language_title': 'Select Language',
+'select_language_message': 'Please choose language to view ledger',
+
+
+'ledger_company': 'Farm ERP Market System',
+'ledger_subtitle': 'Agricultural Market ERP System',
+'ledger_farmer_name': 'Farmer Name:',
+'ledger_ledger_date': 'Ledger Date:',
+'ledger_mobile': 'Mobile:',
+'ledger_period': 'Period:',
+'ledger_all_tx': 'All Transactions',
+'ledger_trans_history': 'Transaction History',
+'ledger_col_date': 'Date',
+'ledger_col_desc': 'Description',
+'ledger_col_ref': 'Reference No',
+'ledger_col_credit': 'Credit (Rs.)',
+'ledger_col_debit': 'Debit (Rs.)',
+'ledger_col_balance': 'Balance (Rs.)',
+'ledger_total': 'Total',
+'ledger_on_account': 'On Account Balance',
+'ledger_final_balance': 'Final Balance',
+'ledger_for_label': 'For,',
+'ledger_authorised': 'Authorised Signatory',
+'ledger_page': 'Page',
+'ledger_of': 'of',
+// Types
+'type_purchase': 'Purchase',
+'type_payment': 'Payment',
+'type_advance': 'Advance',
+'type_reversal': 'Reversal',
+// UI chips
+'total_paid': 'Total Paid',
+'total_purchased': 'Purchased',
+'due': 'Due',
+'cleared': 'Cleared',
+'balance': 'Bal',
+
+
   };
 
   // Marathi translations
@@ -215,9 +270,12 @@ class LanguageProvider extends ChangeNotifier {
     'field_required': 'हे फील्ड आवश्यक आहे',
 
       // Farmer Registration Screen
+  // ignore: equal_keys_in_map
   'add_farmer': 'नवीन शेतकरी जोडा',
   // ... existing translations ...
+  // ignore: equal_keys_in_map
   'no_farmers_found': 'कोणतेही शेतकरी सापडले नाहीत',
+  // ignore: equal_keys_in_map
   'add_first_farmer': 'तुमचा पहिला शेतकरी जोडा',
   
   // Add these new translations:
@@ -226,6 +284,54 @@ class LanguageProvider extends ChangeNotifier {
   'clear_search': 'शोध साफ करा',
   
   // Success/Error messages
+  // ignore: equal_keys_in_map
   'success': 'यश',
+
+  // Inside _marathiTranslations map, after existing entries:
+'ledger_title': 'शेतकरी खातेवही',
+'ledger_subtitle': 'पूर्ण खातेवही पाहण्यासाठी आणि पीडीएफ डाउनलोड करण्यासाठी कोणत्याही शेतकऱ्यावर टॅप करा',
+'search_hint_ledger': 'नाव किंवा मोबाइलने शोधा...',
+'due_short': 'बाकी',
+'clear_short': 'स्वच्छ',
+// ignore: equal_keys_in_map
+'no_matching_farmers': 'कोणताही शेतकरी जुळत नाही',
+// ignore: equal_keys_in_map
+'no_farmers_found': 'शेतकरी सापडले नाहीत',
+'farmers': 'शेतकरी',
+'select_language_title': 'भाषा निवडा',
+'select_language_message': 'कृपया खातेवही पाहण्यासाठी भाषा निवडा',
+
+'ledger_company': 'शेतकरी बाजार प्रणाली',
+'ledger_subtitle': 'कृषी बाजार ERP प्रणाली',
+'ledger_farmer_name': 'शेतकऱ्याचे नाव:',
+'ledger_ledger_date': 'खाते दिनांक:',
+'ledger_mobile': 'मोबाइल:',
+'ledger_period': 'कालावधी:',
+'ledger_all_tx': 'सर्व व्यवहार',
+'ledger_trans_history': 'व्यवहाराचा इतिहास',
+'ledger_col_date': 'दिनांक',
+'ledger_col_desc': 'वर्णन',
+'ledger_col_ref': 'संदर्भ क्र.',
+'ledger_col_credit': 'जमा (Rs.)',
+'ledger_col_debit': 'नावे (Rs.)',
+'ledger_col_balance': 'शिल्लक (Rs.)',
+'ledger_total': 'एकूण',
+'ledger_on_account': 'खाते शिल्लक',
+'ledger_final_balance': 'अंतिम शिल्लक',
+'ledger_for_label': 'साठी,',
+'ledger_authorised': 'अधिकृत स्वाक्षरी',
+'ledger_page': 'पृष्ठ',
+'ledger_of': 'पैकी',
+// Types
+'type_purchase': 'खरेदी',
+'type_payment': 'पेमेंट',
+'type_advance': 'अग्रिम',
+'type_reversal': 'उलट',
+// UI chips
+'total_paid': 'एकूण दिले',
+'total_purchased': 'एकूण खरेदी',
+'due': 'बाकी',
+'cleared': 'स्वच्छ',
+'balance': 'शिल्लक',
   };
 }

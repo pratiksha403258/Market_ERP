@@ -348,6 +348,43 @@ class AuthService {
     }
   }
 
+  // Add to AuthService class
+Future<AuthResult> updateProfile(Map<String, dynamic> data) async {
+  try {
+    final response = await _dio.put(
+      ApiRoutes.me,
+      data: data,
+    );
+
+    final responseData = response.data as Map<String, dynamic>;
+    if (responseData['success'] != true) {
+      return AuthResult.failure(
+        message: responseData['message']?.toString() ?? 'Update failed',
+      );
+    }
+
+    final userData = responseData['user'] as Map<String, dynamic>;
+    final updatedUser = UserModel.fromJson(userData);
+
+    // Update cached user info
+    await _storage.write(key: AppConstants.keyUserName, value: updatedUser.name);
+    if (updatedUser.role != null) {
+      await _storage.write(key: AppConstants.keyUserRole, value: updatedUser.role);
+    }
+
+    return AuthResult.success(user: updatedUser);
+  } on DioException catch (e) {
+    return AuthResult.failure(message: _parseError(e));
+  } catch (e) {
+    return AuthResult.failure(message: 'Unexpected error: $e');
+  }
+}
+
+// Optional: Add method to manually refresh user data
+Future<UserModel?> refreshUserProfile() async {
+  return await getMe();
+}
+
   // ── SESSION CHECK ────────────────────────────────────────────
   Future<bool> hasValidSession() async {
     final token = await _storage.read(key: AppConstants.keyAccessToken);

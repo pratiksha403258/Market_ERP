@@ -19,6 +19,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => LanguageProvider()),
         ChangeNotifierProvider(create: (_) => FarmerProvider()),  
+        
       ],
       child: const MarketErpApp(),
     ),
@@ -38,7 +39,6 @@ class MarketErpApp extends StatelessWidget {
       routes: {
         '/splash':    (_) => const SplashScreen(),
         '/login':     (_) => const LoginScreen(),
-        // '/register':  (_) => const RegisterScreen(),
         '/language':  (_) => const LanguageSelectionScreen(),
         '/home':      (_) => const MainNavigationScreen(),
       },

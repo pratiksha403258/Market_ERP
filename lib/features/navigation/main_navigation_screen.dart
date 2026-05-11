@@ -1,13 +1,16 @@
+
+import 'package:agr_market/expense/expense_list_screen.dart';
+import 'package:agr_market/purchase/purchase_list_screen.dart';
+import 'package:agr_market/warehouse/warehouse_list_screen.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/colors.dart';
 import '../dashboard/screens/dashboard_screen.dart';
 import '../farmers/screens/farmer_list_screen.dart';
 
-// ─────────────────────────────────────────────────────────────
-//  MAIN NAVIGATION SCREEN — floating bottom nav
-// ─────────────────────────────────────────────────────────────
+// MAIN NAVIGATION SCREEN — floating bottom nav
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
+  
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
@@ -16,19 +19,27 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
 
   final List<_NavItem> _items = const [
-    _NavItem(icon: Icons.home_rounded,     label: 'Home'),
-    _NavItem(icon: Icons.people_rounded,   label: 'Farmers'),
-    _NavItem(icon: Icons.add_box_rounded,  label: 'Purchase'),
-    _NavItem(icon: Icons.person_rounded,   label: 'Profile'),
+    _NavItem(icon: Icons.home_rounded, label: 'Home'),
+    _NavItem(icon: Icons.people_rounded, label: 'Farmers'),
+    _NavItem(icon: Icons.add_box_rounded, label: 'Purchase'),
+    _NavItem(icon: Icons.receipt_rounded, label: 'Expense'),
+    _NavItem(icon: Icons.warehouse_rounded, label: 'Warehouse'),
   ];
 
   Widget _buildScreen() {
     switch (_currentIndex) {
-      case 0: return const DashboardScreen();
-      case 1: return  FarmerListScreen();
-      case 2: return const _ComingSoon(icon: Icons.add_shopping_cart_rounded, title: 'Purchase');
-      case 3: return const _ComingSoon(icon: Icons.person_rounded, title: 'Profile');
-      default: return const DashboardScreen();
+      case 0:
+        return const DashboardScreen();
+      case 1:
+        return const FarmerListScreen();
+      case 2:
+        return const PurchaseListScreen();
+      case 3:
+        return const ExpenseListScreen();
+      case 4:
+        return const WarehouseListScreen();
+      default:
+        return const DashboardScreen();
     }
   }
 
@@ -39,7 +50,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       body: _buildScreen(),
       bottomNavigationBar: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4), // Reduced horizontal padding
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(28),
@@ -57,47 +68,51 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ],
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly, 
           children: List.generate(_items.length, (i) {
             final isSelected = _currentIndex == i;
-            return GestureDetector(
-              onTap: () => setState(() => _currentIndex = i),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppColors.primary.withOpacity(0.12)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _items[i].icon,
-                      color: isSelected
-                          ? AppColors.primary
-                          : AppColors.textHint,
-                      size: 24,
-                    ),
-                    const SizedBox(height: 4),
-                    AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 200),
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontFamily: 'Poppins',
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.w400,
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _currentIndex = i),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8, 
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.primary.withOpacity(0.12)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _items[i].icon,
                         color: isSelected
                             ? AppColors.primary
                             : AppColors.textHint,
+                        size: 22, 
                       ),
-                      child: Text(_items[i].label),
-                    ),
-                  ],
+                      const SizedBox(height: 2), 
+                      AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 200),
+                        style: TextStyle(
+                          fontSize: 9, 
+                          fontFamily: 'Poppins',
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.textHint,
+                        ),
+                        child: Text(_items[i].label),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -111,40 +126,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 class _NavItem {
   final IconData icon;
   final String label;
-  const _NavItem({required this.icon, required this.label});
-}
-
-// Placeholder for screens not yet built
-class _ComingSoon extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  const _ComingSoon({required this.icon, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Center(child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppColors.primarySurface,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 48, color: AppColors.primary),
-          ),
-          const SizedBox(height: 20),
-          Text('$title Screen',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary, fontFamily: 'Poppins')),
-          const SizedBox(height: 8),
-          const Text('Coming in Sprint 2',
-              style: TextStyle(color: AppColors.textHint, fontSize: 13,
-                  fontFamily: 'Poppins')),
-        ],
-      )),
-    );
-  }
+  
+  const _NavItem({
+    required this.icon,
+    required this.label,
+  });
 }
