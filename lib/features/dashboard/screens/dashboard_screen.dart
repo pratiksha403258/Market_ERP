@@ -12,9 +12,9 @@ import 'package:agr_market/features/auth/screens/profile_screen.dart';
 import 'package:agr_market/features/dashboard/screens/reports_screen.dart';
 import 'package:agr_market/inventory/inventory_list_screen.dart';
 import 'package:agr_market/ledger/ledger_screen.dart';
-import 'package:agr_market/payment/payment_selection_screen.dart';
 // import 'package:agr_market/purchase/purchase_list_screen.dart';
 import 'package:agr_market/purchase/purchase_screen.dart';
+import 'package:agr_market/sales/sale_create_screen.dart';
 import 'package:agr_market/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -118,33 +118,44 @@ Future<void> _loadDashboard() async {
 
     // ── CALL 2: Purchases for weekly bars + recent list ─────
     // status filter skips draft records (which have ₹0 values)
-    List allPurchases = [];
-    try {
-      final now = DateTime.now();
-      final startDate =
-          DateTime(now.year, now.month, 1)
-              .toIso8601String()
-              .split('T')[0];
+   // ── CALL 2: Purchases for weekly bars (full week range) ─────
+List allPurchases = [];
+try {
+  final now = DateTime.now();
+  
+  // Start of the week (Monday)
+  final weekStart = DateTime(now.year, now.month, now.day)
+      .subtract(Duration(days: now.weekday - 1));
+  
+  // End of the week (next Monday, exclusive)
+  final weekEnd = weekStart.add(const Duration(days: 7));
 
-      final pRes = await DioClient.instance.dio.get(
-        ApiRoutes.purchases,
-        queryParameters: {
-          'page': 1,
-          'limit': 50,
-          'sortOrder': 'desc',
-          'status': 'saved,partial,paid',
-          'startDate': startDate,
-        },
-      );
-      if (pRes.data is Map && pRes.data['data'] is List) {
-        allPurchases = pRes.data['data'] as List;
-      } else if (pRes.data is List) {
-        allPurchases = pRes.data as List;
-      }
-      debugPrint('✅ Purchases loaded: ${allPurchases.length}');
-    } catch (e) {
-      debugPrint('⚠️ Purchases (non-fatal): $e');
-    }
+  // Format dates for API
+  final startIso = weekStart.toIso8601String().split('T')[0];
+  final endIso = weekEnd.toIso8601String().split('T')[0];
+
+  final pRes = await DioClient.instance.dio.get(
+    ApiRoutes.purchases,
+    queryParameters: {
+      'page': 1,
+      'limit': 100,          // increase limit to capture all week purchases
+      'sortOrder': 'desc',
+      'status': 'saved,partial,paid',
+      'startDate': startIso,
+      'endDate': endIso,     // optional – but recommended if API supports it
+    },
+  );
+
+  if (pRes.data is Map && pRes.data['data'] is List) {
+    allPurchases = pRes.data['data'] as List;
+  } else if (pRes.data is List) {
+    allPurchases = pRes.data as List;
+  }
+  debugPrint('✅ Weekly purchases loaded: ${allPurchases.length}');
+} catch (e) {
+  debugPrint('⚠️ Weekly purchases error: $e');
+
+}
 
     // ── Weekly bar calculation ──────────────────────────────
     final now = DateTime.now();
@@ -170,7 +181,8 @@ Future<void> _loadDashboard() async {
             .map((v) => (v / maxDay).clamp(0.1, 1.0))
             .toList()
         : List<double>.filled(7, 0.1);
-
+  debugPrint('Weekly totals (₹): $dayTotals');
+debugPrint('Normalized: $weeklyNorm');
     // ── Recent 3 purchases ──────────────────────────────────
     final recentList = allPurchases.take(3).map((p) {
       final lines = p['lines'] as List? ?? [];
@@ -528,10 +540,13 @@ _KpiCard(
                   ),
                 const SizedBox(height: 20),
 
-                // ── Quick Actions (exactly 3 buttons) ───────
+                
              // ── Quick Actions (5 buttons including Reports) ───────
+// ── Quick Actions (including Sales) ───────
 const Text('Quick Actions', style: AppTextStyles.headingMedium),
 const SizedBox(height: 12),
+
+// First row - 3 buttons
 Row(
   children: [
     Expanded(
@@ -541,9 +556,9 @@ Row(
         color: AppColors.primary,
         onTap: () async {
           final result = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => const NewPurchaseScreen()));
+            context,
+            MaterialPageRoute(builder: (_) => const NewPurchaseScreen()),
+          );
           if (result == true) _loadDashboard();
         },
       ),
@@ -556,15 +571,45 @@ Row(
         color: AppColors.secondary,
         onTap: () async {
           final result = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) =>
-                      const FarmerRegistrationScreen()));
+            context,
+            MaterialPageRoute(builder: (_) => const FarmerRegistrationScreen()),
+          );
           if (result == true) _loadDashboard();
         },
       ),
     ),
     const SizedBox(width: 10),
+    Expanded(
+      child: _QuickAction(
+        icon: Icons.storefront_rounded,
+        label: 'New Sale',
+        color: const Color(0xFF00BCD4), // Teal color for sales
+        onTap: () async {
+          final created = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(builder: (_) => const SaleCreateScreen()),
+          );
+          if (created == true) {
+            // Refresh dashboard if needed (or show success)
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Sale created successfully!'),
+                backgroundColor: AppColors.success,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        },
+      ),
+    ),
+  ],
+),
+
+const SizedBox(height: 10),
+
+// Second row - 3 buttons (optional, or keep as 2)
+Row(
+  children: [
     Expanded(
       child: _QuickAction(
         icon: Icons.inventory_2_rounded,
@@ -587,9 +632,7 @@ Row(
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (_) => const LedgerScreen(),
-            ),
+            MaterialPageRoute(builder: (_) => const LedgerScreen()),
           );
         },
       ),
@@ -603,9 +646,7 @@ Row(
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (_) => const ReportsScreen(),
-            ),
+            MaterialPageRoute(builder: (_) => const ReportsScreen()),
           );
         },
       ),

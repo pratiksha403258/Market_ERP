@@ -65,9 +65,12 @@ static String warehouseHardDelete(String id) => '/warehouse/$id/hard';
   static const String inventoryAdjust     = '/inventory/adjust';
   static const String inventoryTransfer    = '/inventory/transfer';
 
-static const String sales               = '/sales';
-static String saleById(String id)       => '/sales/$id';
-static String saleInvoice(String id)    => '/sales/$id/invoice';
+// Sales
+  static const String sales = '/sales';
+  static String saleById(String id) => '/sales/$id';
+  static String saleInvoice(String id) => '/sales/$id/invoice';
+  static String salePayment(String id) => '/sales/$id/payment';
+ 
 
 static const String profitLossReport = '/reports/profit-loss';
 static String farmerReport(String farmerId) => '/reports/farmer/$farmerId';
@@ -77,6 +80,10 @@ static String inventoryHistoryReport(String productId) => '/warehouse/history/$p
 
 static const String allOperatorsLedger = '/ledger/all/operators';
 static String operatorLedger(String id) => '/ledger/operator/$id';
+static const String allFarmersLedger = '/ledger/all/farmers'; //superadmin only 
+
+
+  static const String profitLoss = '/reports/profit-loss';
 
 }
  

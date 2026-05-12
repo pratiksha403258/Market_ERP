@@ -17,13 +17,15 @@ class OperatorInfo {
     required this.role,
   });
 
-  factory OperatorInfo.fromJson(Map<String, dynamic> json) => OperatorInfo(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        email: json['email'] as String,
-        phone: json['phone'] as String,
-        role: json['role'] as String,
-      );
+  factory OperatorInfo.fromJson(Map<String, dynamic> json) {
+    return OperatorInfo(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? '',
+      role: json['role']?.toString() ?? 'operator',
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -33,7 +35,115 @@ class OperatorInfo {
         'role': role,
       };
 }
+// Add these models to your existing ledger_models.dart
 
+// ------------------- All Farmers Response -------------------
+class FarmerBasicInfo {
+  final String id;
+  final String name;
+  final String mobile;
+
+  FarmerBasicInfo({
+    required this.id,
+    required this.name,
+    required this.mobile,
+  });
+
+  factory FarmerBasicInfo.fromJson(Map<String, dynamic> json) => FarmerBasicInfo(
+        id: json['_id'] as String? ?? json['id'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        mobile: json['mobile'] as String? ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {
+        '_id': id,
+        'name': name,
+        'mobile': mobile,
+      };
+}
+
+class FarmerFinancialSummary {
+  final double totalCredit;
+  final double totalDebit;
+  final double closingBalance;
+  final int transactionCount;
+
+  FarmerFinancialSummary({
+    required this.totalCredit,
+    required this.totalDebit,
+    required this.closingBalance,
+    required this.transactionCount,
+  });
+
+  factory FarmerFinancialSummary.fromJson(Map<String, dynamic> json) => FarmerFinancialSummary(
+        totalCredit: _toDouble(json['totalCredit']),
+        totalDebit: _toDouble(json['totalDebit']),
+        closingBalance: _toDouble(json['closingBalance']),
+        transactionCount: (json['transactionCount'] as num?)?.toInt() ?? 0,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'totalCredit': totalCredit,
+        'totalDebit': totalDebit,
+        'closingBalance': closingBalance,
+        'transactionCount': transactionCount,
+      };
+}
+
+class FarmerLedgerItem {
+  final FarmerBasicInfo farmer;
+  final FarmerFinancialSummary financialSummary;
+  final List<LedgerTransaction> recentTransactions;
+
+  FarmerLedgerItem({
+    required this.farmer,
+    required this.financialSummary,
+    required this.recentTransactions,
+  });
+
+  factory FarmerLedgerItem.fromJson(Map<String, dynamic> json) => FarmerLedgerItem(
+        farmer: FarmerBasicInfo.fromJson(json['farmer']),
+        financialSummary: FarmerFinancialSummary.fromJson(json['financialSummary'] ?? {}),
+        recentTransactions: (json['recentTransactions'] as List?)
+                ?.map((e) => LedgerTransaction.fromJson(e))
+                .toList() ??
+            [],
+      );
+
+  Map<String, dynamic> toJson() => {
+        'farmer': farmer.toJson(),
+        'financialSummary': financialSummary.toJson(),
+        'recentTransactions': recentTransactions.map((e) => e.toJson()).toList(),
+      };
+}
+
+class AllFarmersLedgerData {
+  final Map<String, dynamic> period;
+  final Map<String, dynamic> filters;
+  final List<FarmerLedgerItem> farmers;
+  final PaginationInfo pagination;
+
+  AllFarmersLedgerData({
+    required this.period,
+    required this.filters,
+    required this.farmers,
+    required this.pagination,
+  });
+
+  factory AllFarmersLedgerData.fromJson(Map<String, dynamic> json) => AllFarmersLedgerData(
+        period: json['period'] as Map<String, dynamic>? ?? {},
+        filters: json['filters'] as Map<String, dynamic>? ?? {},
+        farmers: (json['farmers'] as List?)?.map((e) => FarmerLedgerItem.fromJson(e)).toList() ?? [],
+        pagination: PaginationInfo.fromJson(json['pagination']),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'period': period,
+        'filters': filters,
+        'farmers': farmers.map((e) => e.toJson()).toList(),
+        'pagination': pagination.toJson(),
+      };
+}
 class FinancialSummary {
   final double totalSales;
   final double totalPurchases;
@@ -85,7 +195,6 @@ class FinancialSummary {
         'totalTransactionCount': totalTransactionCount,
       };
 }
-
 class FarmerReference {
   final String id;
   final String name;
@@ -93,15 +202,16 @@ class FarmerReference {
 
   FarmerReference({required this.id, required this.name, required this.mobile});
 
-  factory FarmerReference.fromJson(Map<String, dynamic> json) => FarmerReference(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        mobile: json['mobile'] as String,
-      );
+  factory FarmerReference.fromJson(Map<String, dynamic> json) {
+    return FarmerReference(
+      id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      mobile: json['mobile']?.toString() ?? '',
+    );
+  }
 
   Map<String, dynamic> toJson() => {'id': id, 'name': name, 'mobile': mobile};
 }
-
 class LedgerTransaction {
   final String id;
   final FarmerReference? farmer;
@@ -429,7 +539,7 @@ class SingleOperatorLedgerResponse {
   Map<String, dynamic> toJson() => {'success': success, 'data': data.toJson()};
 }
 
-// Helper
+
 double _toDouble(dynamic value) {
   if (value == null) return 0.0;
   if (value is double) return value;

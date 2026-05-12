@@ -6,6 +6,7 @@
     android:maxSdkVersion="32"/>
     <application
         android:label="agr_market"
+          android:enableOnBackInvokedCallback="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

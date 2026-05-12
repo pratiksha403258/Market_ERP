@@ -197,6 +197,21 @@ class LanguageProvider extends ChangeNotifier {
 'balance': 'Bal',
 
 
+// In your translation files, add:
+'farmers_tab': 'Farmers',
+'operators_tab': 'Operators',
+'search_hint_farmer_ledger': 'Search farmers by name or mobile...',
+'search_hint_operator_ledger': 'Search operators by name or email...',
+'no_matching_operators': 'No matching operators found for',
+'no_operators_found': 'No operators found',
+'operator_name': 'Operator Name',
+'net_profit_short': 'Net Profit',
+'email': 'Email',
+'total_sales': 'Total Sales',
+'total_expenses': 'Total Expenses',
+'net_profit': 'Net Profit',
+
+
   };
 
   // Marathi translations

@@ -705,7 +705,7 @@ Widget _buildStep0Farmer(PurchaseController controller) {
         Row(
           children: [
             Expanded(
-              child: _stepHeader('✅ Summary', 'Review and confirm purchase'),
+              child: _stepHeader(' Summary', 'Review and confirm purchase'),
             ),
             // Show delete button only in edit mode
             if (controller.isEditMode)
