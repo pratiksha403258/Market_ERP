@@ -1,4 +1,5 @@
 import 'package:agr_market/sales/sales_detail_sheet.dart';
+import 'package:agr_market/sales/sales_invoice_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -448,12 +449,19 @@ class _SalesListScreenState extends State<SalesListScreen> {
     return GestureDetector(
       onTap: () {
         Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (_) => SalesInvoiceScreen(saleId: sale.id),
+  ),
+);
+        Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => SaleDetailScreen(saleId: sale.id),
           ),
         );
       },
+      
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(14),

@@ -91,441 +91,965 @@ class _ReceiptScreenState extends State<ReceiptScreen>
   // ─────────────────────────────────────────────────────────
   //  PDF GENERATION
   // ─────────────────────────────────────────────────────────
-  Future<pw.Document> _generateReceiptPdf() async {
-    // ── Load Unicode fonts (supports ₹) ─────────────────────
-    final regularFont = await PdfGoogleFonts.notoSansRegular();
-    final boldFont    = await PdfGoogleFonts.notoSansBold();
+Future<pw.Document> _generateReceiptPdf() async {
+  // ── Fonts ───────────────────────────────────────────────
+  final regularFont = await PdfGoogleFonts.notoSansRegular();
+  final boldFont = await PdfGoogleFonts.notoSansBold();
 
-    final r          = _receipt!;
-    final farmer     = r['farmer']     as Map<String, dynamic>? ?? {};
-    final business   = r['business']   as Map<String, dynamic>? ?? {};
-    final lines      = r['lines']      as List? ?? [];
-    final deductions = r['deductions'] as Map<String, dynamic>? ?? {};
-    final payments   = r['payments']   as List? ?? [];
+  final r = _receipt!;
+  final farmer = r['farmer'] as Map<String, dynamic>? ?? {};
+  final business = r['business'] as Map<String, dynamic>? ?? {};
+  final lines = r['lines'] as List? ?? [];
+  final deductions = r['deductions'] as Map<String, dynamic>? ?? {};
+  final payments = r['payments'] as List? ?? [];
 
-    // ── Colours ──────────────────────────────────────────
-    const green      = PdfColor.fromInt(0xFF2E7D32);
-    const borderGrey = PdfColor.fromInt(0xFFBDBDBD);
-    const textDark   = PdfColor.fromInt(0xFF212121);
-    const textGrey   = PdfColor.fromInt(0xFF757575);
-    const redAccent  = PdfColor.fromInt(0xFFD32F2F);
+  // ── Colors ─────────────────────────────────────────────
+  const green = PdfColor.fromInt(0xFF2E7D32);
+  const lightGreenBorder = PdfColor.fromInt(0xFFC8E6C9);
+  const textGrey = PdfColor.fromInt(0xFF6B4C3B);
+  const redAccent = PdfColor.fromInt(0xFFD32F2F);
+  const orangeAccent = PdfColor.fromInt(0xFFFF6F00);
 
-    // ── Text style helper — uses loaded fonts ─────────────
-    pw.TextStyle ts({
-      double size = 9,
-      pw.FontWeight weight = pw.FontWeight.normal,
-      PdfColor color = textDark,
-    }) =>
-        pw.TextStyle(
-          font: weight == pw.FontWeight.bold ? boldFont : regularFont,
-          fontBold: boldFont,
-          fontSize: size,
-          fontWeight: weight,
-          color: color,
-        );
+  // ── Helpers ────────────────────────────────────────────
+  double toD(dynamic v) => (v as num?)?.toDouble() ?? 0.0;
 
-    // ── Local table cell helpers (access fonts via closure) ─
-    pw.Widget th(String text, {pw.TextAlign align = pw.TextAlign.left}) =>
-        pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-          child: pw.Text(text,
-              textAlign: align,
-              style: pw.TextStyle(
-                  font: boldFont,
-                  fontSize: 8,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.white)),
-        );
+  String fmtRs(dynamic v) =>
+      '₹${toD(v).toStringAsFixed(0)}';
 
-    pw.Widget td(String text,
-            {pw.TextAlign align = pw.TextAlign.left,
-            bool bold = false,
-            PdfColor? color}) =>
-        pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-          child: pw.Text(text,
-              textAlign: align,
-              style: pw.TextStyle(
-                  font: bold ? boldFont : regularFont,
-                  fontSize: 8.5,
-                  fontWeight:
-                      bold ? pw.FontWeight.bold : pw.FontWeight.normal,
-                  color: color ?? textDark)),
-        );
+  pw.TextStyle ts({
+    double size = 9,
+    pw.FontWeight weight = pw.FontWeight.normal,
+    PdfColor color = PdfColors.black,
+  }) {
+    return pw.TextStyle(
+      font: weight == pw.FontWeight.bold ? boldFont : regularFont,
+      fontBold: boldFont,
+      fontSize: size,
+      fontWeight: weight,
+      color: color,
+    );
+  }
 
-    // ── Helpers ───────────────────────────────────────────
-    double toD(dynamic v) => (v as num?)?.toDouble() ?? 0.0;
-    String fmtRs(dynamic v) => '₹${toD(v).toStringAsFixed(2)}';
-
-    pw.Widget hline({PdfColor color = borderGrey, double t = 0.4}) =>
-        pw.Divider(thickness: t, color: color, height: 6);
-
-    pw.Widget borderedBox(pw.Widget child, {pw.EdgeInsets? pad}) =>
-        pw.Container(
-          decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: borderGrey, width: 0.5)),
-          padding: pad ?? const pw.EdgeInsets.all(8),
-          child: child,
-        );
-
-    // ── Data ──────────────────────────────────────────────
-    final grossTotal   = toD(r['grossTotal']);
-    final totalDed     = toD(r['totalDeductions']);
-    final finalPayable = toD(r['finalPayable']);
-    final amountPaid   = toD(r['amountPaid']);
-    final amountDue    = toD(r['amountDue']);
-    final transport    = toD(deductions['transport']);
-    final labour       = toD(deductions['labour']);
-    final commission   = toD(deductions['commission']);
-    final storage      = toD(deductions['storage']);
-    final returnDed    = toD(deductions['returnDeduction']);
-    final advAdj       = toD(deductions['advanceAdjusted']);
-    final other        = toD(deductions['other']);
-
-    final receiptNo  = r['receiptNumber']?.toString() ?? '';
-    final dateStr    = _fmtDateFull(r['purchaseDate']?.toString() ?? r['createdAt']?.toString() ?? '');
-    final farmerName = farmer['name']?.toString()    ?? widget.farmerName   ?? '';
-    final mobile     = farmer['mobile']?.toString()  ?? widget.farmerMobile ?? '';
-    final village    = farmer['village']?.toString() ?? '';
-    final state      = farmer['state']?.toString()   ?? '';
-    final address    = farmer['address']?.toString() ?? '';
-    final bizName    = business['name']?.toString()    ?? 'Farm ERP';
-    final bizAddress = business['address']?.toString() ?? '';
-    final bizPhone   = business['phone']?.toString()   ?? '';
-    final bizEmail   = business['email']?.toString()   ?? '';
-    final bizGst     = business['gst']?.toString()     ?? '';
-    final notes      = r['notes']?.toString()  ?? '';
-    final status     = r['status']?.toString() ?? 'Draft';
-
-    String paymentMethod = 'N/A';
-    if (payments.isNotEmpty) {
-      final modes = payments
-          .map((p) => (p['mode'] ?? p['paymentMode'] ?? '').toString())
-          .where((m) => m.isNotEmpty)
-          .toSet()
-          .join(', ');
-      if (modes.isNotEmpty) paymentMethod = modes;
-    }
-
-    // ── Reusable row builders ─────────────────────────────
-    pw.Widget dedRow(String label, double value) {
-      if (value <= 0) return pw.SizedBox(height: 0);
-      return pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-        child: pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          children: [
-            pw.Text(label, style: ts(size: 8, color: textGrey)),
-            pw.Text(fmtRs(value), style: ts(size: 8)),
-          ],
+  pw.Widget borderedBox(
+    pw.Widget child, {
+    double padding = 10,
+  }) {
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(
+          color: lightGreenBorder,
+          width: 0.8,
         ),
-      );
+      ),
+      padding: pw.EdgeInsets.all(padding),
+      child: child,
+    );
+  }
+
+  pw.Widget summaryRow(
+    String label,
+    String value, {
+    bool bold = false,
+    PdfColor valueColor = green,
+    double size = 11,
+  }) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 8,
+      ),
+      decoration: pw.BoxDecoration(
+        border: pw.Border(
+          left: pw.BorderSide(color: lightGreenBorder, width: 0.8),
+          right: pw.BorderSide(color: lightGreenBorder, width: 0.8),
+          bottom: pw.BorderSide(color: lightGreenBorder, width: 0.8),
+        ),
+      ),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(
+            label,
+            style: ts(
+              size: size,
+              weight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+              color: green,
+            ),
+          ),
+          pw.Text(
+            value,
+            style: ts(
+              size: size,
+              weight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+              color: valueColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget deductionRow(String title, dynamic value) {
+    if (toD(value) <= 0) {
+      return pw.SizedBox();
     }
 
-    pw.Widget sumRow(String label, String value,
-            {bool bold = false, PdfColor? valColor}) =>
-        pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(vertical: 2),
-          child: pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-            children: [
-              pw.Text(label,
-                  style: ts(
-                      size: 8.5,
-                      weight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
-              pw.Text(value,
-                  style: ts(
-                      size: 8.5,
-                      weight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
-                      color: valColor ?? textDark)),
-            ],
-          ),
-        );
-
-    final doc = pw.Document();
-
-    doc.addPage(pw.Page(
-      pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.fromLTRB(30, 30, 30, 30),
-      build: (ctx) => pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 4),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-
-          // 1. HEADER
-          pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.SizedBox(
-                width: 100,
-                child: pw.Text('Logo',
-                    style: pw.TextStyle(
-                        font: boldFont,
-                        fontSize: 28,
-                        fontWeight: pw.FontWeight.bold,
-                        color: green)),
-              ),
-              pw.Spacer(),
-              pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-                pw.Text(bizName, style: ts(size: 13, weight: pw.FontWeight.bold)),
-                if (bizAddress.isNotEmpty)
-                  pw.Text(bizAddress, style: ts(size: 8, color: textGrey)),
-                if (bizPhone.isNotEmpty)
-                  pw.Text('Tel: $bizPhone', style: ts(size: 8, color: textGrey)),
-                if (bizEmail.isNotEmpty)
-                  pw.Text('Email: $bizEmail', style: ts(size: 8, color: textGrey)),
-                if (bizGst.isNotEmpty)
-                  pw.Text('GST: $bizGst', style: ts(size: 8, color: textGrey)),
-              ]),
-            ],
+          pw.Text(
+            title,
+            style: ts(
+              size: 8,
+              color: textGrey,
+            ),
           ),
-          pw.SizedBox(height: 12),
-          hline(t: 0.5),
-          pw.SizedBox(height: 10),
-
-          // 2. RECEIPT NO | DATE
-          pw.Row(children: [
-            pw.Expanded(
-              child: borderedBox(pw.Padding(
-                padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                child: pw.Text(receiptNo, style: ts(size: 9, weight: pw.FontWeight.bold)),
-              )),
+          pw.Text(
+            fmtRs(value),
+            style: ts(
+              size: 8,
+              weight: pw.FontWeight.bold,
+              color: redAccent,
             ),
-            pw.Expanded(
-              child: borderedBox(pw.Padding(
-                padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                child: pw.Text(dateStr, style: ts(size: 9, weight: pw.FontWeight.bold)),
-              )),
-            ),
-          ]),
-          pw.SizedBox(height: 10),
+          ),
+        ],
+      ),
+    );
+  }
 
-          // 3. FARMER DETAILS
-          borderedBox(pw.Padding(
-            padding: const pw.EdgeInsets.all(10),
-            child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-              pw.Text(farmerName, style: ts(size: 10, weight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 3),
-              if (mobile.isNotEmpty)
-                pw.Text('Mobile: $mobile', style: ts(size: 8.5, color: green)),
-              if (village.isNotEmpty || state.isNotEmpty)
+  // ── Data ───────────────────────────────────────────────
+  final grossTotal = toD(r['grossTotal']);
+  final totalDed = toD(r['totalDeductions']);
+  final finalPayable = toD(r['finalPayable']);
+  final amountPaid = toD(r['amountPaid']);
+  final amountDue = toD(r['amountDue']);
+
+  final receiptNo =
+      r['receiptNumber']?.toString() ?? 'N/A';
+
+  final dateStr = _fmtDateFull(
+    r['purchaseDate']?.toString() ??
+        r['createdAt']?.toString() ??
+        '',
+  );
+
+  final farmerName =
+      farmer['name']?.toString() ??
+          widget.farmerName ??
+          '';
+
+  final mobile =
+      farmer['mobile']?.toString() ??
+          widget.farmerMobile ??
+          '';
+
+  final village =
+      farmer['village']?.toString() ?? '';
+
+  final state =
+      farmer['state']?.toString() ?? '';
+
+  final address =
+      farmer['address']?.toString() ?? '';
+
+  final bizName =
+      business['name']?.toString() ??
+          'Farm ERP';
+
+  final bizAddress =
+      business['address']?.toString() ?? '';
+
+  final bizPhone =
+      business['phone']?.toString() ?? '';
+
+  final bizEmail =
+      business['email']?.toString() ?? '';
+
+  final bizGst =
+      business['gst']?.toString() ?? '';
+
+  final notes =
+      r['notes']?.toString() ?? '';
+
+  final status =
+      r['status']?.toString() ?? 'Saved';
+
+  String paymentMethod = 'Cash';
+
+  if (payments.isNotEmpty) {
+    final modes = payments
+        .map((p) =>
+            (p['mode'] ??
+                    p['paymentMode'] ??
+                    '')
+                .toString())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .join(', ');
+
+    if (modes.isNotEmpty) {
+      paymentMethod = modes;
+    }
+  }
+
+  final doc = pw.Document();
+
+  doc.addPage(
+    pw.Page(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.fromLTRB(35, 25, 35, 20),
+
+      build: (context) {
+        return pw.Column(
+          crossAxisAlignment:
+              pw.CrossAxisAlignment.start,
+          children: [
+
+            // HEADER
+            pw.Row(
+              crossAxisAlignment:
+                  pw.CrossAxisAlignment.start,
+              children: [
+
                 pw.Text(
-                  [
-                    if (village.isNotEmpty) 'Village: $village',
-                    if (state.isNotEmpty) 'State: $state',
-                  ].join(' , '),
-                  style: ts(size: 8.5, color: green),
+                  'Logo',
+                  style: ts(
+                    size: 24,
+                    weight: pw.FontWeight.bold,
+                    color: green,
+                  ),
                 ),
-              if (address.isNotEmpty)
-                pw.Text('Address: $address', style: ts(size: 8.5, color: green)),
-            ]),
-          )),
-          pw.SizedBox(height: 10),
 
-          // 4. PRODUCTS TABLE
-          pw.Table(
-            border: pw.TableBorder.all(color: borderGrey, width: 0.5),
-            columnWidths: const {
-              0: pw.FlexColumnWidth(4),
-              1: pw.FlexColumnWidth(1.5),
-              2: pw.FlexColumnWidth(1.5),
-              3: pw.FlexColumnWidth(2),
-              4: pw.FlexColumnWidth(2),
-            },
-            children: [
-              pw.TableRow(
-                decoration: const pw.BoxDecoration(color: green),
+                pw.Spacer(),
+
+                pw.Column(
+                  crossAxisAlignment:
+                      pw.CrossAxisAlignment.end,
+                  children: [
+
+                    pw.Text(
+                      bizName,
+                      style: ts(
+                        size: 14,
+                        weight: pw.FontWeight.bold,
+                        color: green,
+                      ),
+                    ),
+
+                    pw.SizedBox(height: 2),
+
+                    if (bizAddress.isNotEmpty)
+                      pw.Text(
+                        bizAddress,
+                        style: ts(
+                          size: 7.5,
+                          color: textGrey,
+                        ),
+                      ),
+
+                    if (business['city'] != null ||
+                        business['state'] != null)
+                      pw.Text(
+                        '${business['city'] ?? ''}, ${business['state'] ?? ''}',
+                        style: ts(
+                          size: 7.5,
+                          color: textGrey,
+                        ),
+                      ),
+
+                    if (bizPhone.isNotEmpty)
+                      pw.Text(
+                        'Tel: $bizPhone',
+                        style: ts(
+                          size: 7.5,
+                          color: textGrey,
+                        ),
+                      ),
+
+                    if (bizEmail.isNotEmpty)
+                      pw.Text(
+                        'Email: $bizEmail',
+                        style: ts(
+                          size: 7.5,
+                          color: textGrey,
+                        ),
+                      ),
+
+                    if (bizGst.isNotEmpty)
+                      pw.Text(
+                        'GST: $bizGst',
+                        style: ts(
+                          size: 7.5,
+                          color: textGrey,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+
+            pw.SizedBox(height: 18),
+
+            // RECEIPT NO + DATE
+            pw.Row(
+              children: [
+
+                pw.Expanded(
+                  child: borderedBox(
+                    pw.Text(
+                      'Receipt No: $receiptNo',
+                      style: ts(
+                        size: 9,
+                        weight: pw.FontWeight.bold,
+                        color: green,
+                      ),
+                    ),
+                    padding: 7,
+                  ),
+                ),
+
+                pw.SizedBox(width: 10),
+
+                pw.Expanded(
+                  child: borderedBox(
+                    pw.Text(
+                      dateStr,
+                      style: ts(
+                        size: 9,
+                        weight: pw.FontWeight.bold,
+                        color: green,
+                      ),
+                    ),
+                    padding: 7,
+                  ),
+                ),
+              ],
+            ),
+
+            pw.SizedBox(height: 12),
+
+            // FARMER BOX
+            borderedBox(
+              pw.Column(
+                crossAxisAlignment:
+                    pw.CrossAxisAlignment.start,
                 children: [
-                  th('DESCRIPTION'),
-                  th('QTY',    align: pw.TextAlign.center),
-                  th('UNIT',   align: pw.TextAlign.center),
-                  th('RATE (₹)',  align: pw.TextAlign.right),
-                  th('TOTAL (₹)', align: pw.TextAlign.right),
+
+                  pw.Text(
+                    farmerName,
+                    style: ts(
+                      size: 9.5,
+                      weight: pw.FontWeight.bold,
+                      color: green,
+                    ),
+                  ),
+
+                  if (mobile.isNotEmpty)
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(top: 2),
+                      child: pw.Text(
+                        'Mobile: $mobile',
+                        style: ts(
+                          size: 7.8,
+                          color: green,
+                        ),
+                      ),
+                    ),
+
+                  if (village.isNotEmpty ||
+                      state.isNotEmpty)
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(top: 2),
+                      child: pw.Text(
+                        'Village: $village, $state',
+                        style: ts(
+                          size: 7.8,
+                          color: green,
+                        ),
+                      ),
+                    ),
+
+                  if (address.isNotEmpty)
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(top: 2),
+                      child: pw.Text(
+                        'Address: $address',
+                        style: ts(
+                          size: 7.8,
+                          color: green,
+                        ),
+                      ),
+                    ),
                 ],
               ),
-              ...lines.map((l) {
-                final qty       = toD(l['billedQty']);
-                final unit      = l['unit']?.toString() ?? '';
-                final rate      = toD(l['rate']);
-                final lineTotal = toD(l['lineTotal']);
-                return pw.TableRow(children: [
-                  td(l['productName']?.toString() ?? ''),
-                  td(qty.toStringAsFixed(2), align: pw.TextAlign.center),
-                  td(unit,                   align: pw.TextAlign.center),
-                  td(fmtRs(rate),            align: pw.TextAlign.right, color: redAccent),
-                  td(fmtRs(lineTotal),       align: pw.TextAlign.right, bold: true, color: redAccent),
-                ]);
-              }),
-            ],
-          ),
-          pw.SizedBox(height: 10),
+              padding: 8,
+            ),
 
-          // 5. DEDUCTIONS | SUMMARY
-          pw.Expanded(
-            child: pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
+            pw.SizedBox(height: 12),
+
+            // TABLE
+            pw.Table(
+              border: pw.TableBorder.all(
+                color: lightGreenBorder,
+                width: 0.8,
+              ),
+
+              columnWidths: {
+                0: const pw.FlexColumnWidth(4),
+                1: const pw.FlexColumnWidth(1.5),
+                2: const pw.FlexColumnWidth(1.5),
+                3: const pw.FlexColumnWidth(2.2),
+                4: const pw.FlexColumnWidth(2.5),
+              },
+
               children: [
-                // LEFT
+
+                // HEADER
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(
+                    color: green,
+                  ),
+                  children: [
+
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        'DESCRIPTION',
+                        style: ts(
+                          size: 7.5,
+                          weight: pw.FontWeight.bold,
+                          color: PdfColors.white,
+                        ),
+                      ),
+                    ),
+
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        'QTY',
+                        textAlign: pw.TextAlign.right,
+                        style: ts(
+                          size: 7.5,
+                          weight: pw.FontWeight.bold,
+                          color: PdfColors.white,
+                        ),
+                      ),
+                    ),
+
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        'UNIT',
+                        textAlign: pw.TextAlign.right,
+                        style: ts(
+                          size: 7.5,
+                          weight: pw.FontWeight.bold,
+                          color: PdfColors.white,
+                        ),
+                      ),
+                    ),
+
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        'RATE',
+                        textAlign: pw.TextAlign.right,
+                        style: ts(
+                          size: 7.5,
+                          weight: pw.FontWeight.bold,
+                          color: PdfColors.white,
+                        ),
+                      ),
+                    ),
+
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        'TOTAL',
+                        textAlign: pw.TextAlign.right,
+                        style: ts(
+                          size: 7.5,
+                          weight: pw.FontWeight.bold,
+                          color: PdfColors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // ROWS
+                ...lines.map((l) {
+
+                  final qty =
+                      toD(l['billedQty']);
+
+                  final unit =
+                      l['unit']?.toString() ?? '';
+
+                  final rate =
+                      toD(l['rate']);
+
+                  final total =
+                      toD(l['lineTotal']);
+
+                  return pw.TableRow(
+                    children: [
+
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          l['productName']
+                                  ?.toString() ??
+                              '',
+                          style: ts(
+                            size: 7.8,
+                            color: green,
+                          ),
+                        ),
+                      ),
+
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          qty.toStringAsFixed(0),
+                          textAlign:
+                              pw.TextAlign.right,
+                          style: ts(
+                            size: 7.8,
+                            color: green,
+                          ),
+                        ),
+                      ),
+
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          unit,
+                          textAlign:
+                              pw.TextAlign.right,
+                          style: ts(
+                            size: 7.8,
+                            color: green,
+                          ),
+                        ),
+                      ),
+
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          fmtRs(rate),
+                          textAlign:
+                              pw.TextAlign.right,
+                          style: ts(
+                            size: 7.8,
+                            color: green,
+                          ),
+                        ),
+                      ),
+
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          fmtRs(total),
+                          textAlign:
+                              pw.TextAlign.right,
+                          style: ts(
+                            size: 7.8,
+                            weight: pw.FontWeight.bold,
+                            color: orangeAccent,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+              ],
+            ),
+
+            pw.SizedBox(height: 12),
+
+            // BOTTOM
+            pw.Row(
+              crossAxisAlignment:
+                  pw.CrossAxisAlignment.start,
+              children: [
+
+                // LEFT SIDE
                 pw.Expanded(
                   flex: 5,
                   child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    crossAxisAlignment:
+                        pw.CrossAxisAlignment.start,
                     children: [
-                      borderedBox(pw.Padding(
-                        padding: const pw.EdgeInsets.all(10),
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+
+                      // DEDUCTIONS
+                      borderedBox(
+                        pw.Column(
+                          crossAxisAlignment:
+                              pw.CrossAxisAlignment.start,
                           children: [
-                            pw.Text('Deductions',
-                                style: ts(size: 10, weight: pw.FontWeight.bold, color: green)),
-                            pw.SizedBox(height: 6),
-                            dedRow('Transport', transport),
-                            dedRow('Labour', labour),
-                            if (commission > 0)
-                              dedRow(
-                                deductions['commissionType'] == 'percent'
-                                    ? 'Commission (${deductions['commission']}%)'
-                                    : 'Commission',
-                                commission,
+
+                            pw.Text(
+                              'Deductions',
+                              style: ts(
+                                size: 8.5,
+                                weight: pw.FontWeight.bold,
+                                color: green,
                               ),
-                            dedRow('Storage', storage),
-                            dedRow('Return Deduction', returnDed),
-                            dedRow('Advance Adjusted', advAdj),
-                            dedRow('Other', other),
+                            ),
+
+                            pw.SizedBox(height: 6),
+
+                            deductionRow(
+                              'Transport',
+                              deductions['transport'],
+                            ),
+
+                            deductionRow(
+                              'Labour',
+                              deductions['labour'],
+                            ),
+
+                            deductionRow(
+                              deductions['commissionType'] == 'percent'
+                                  ? 'Commission (${deductions['commission']}%)'
+                                  : 'Commission',
+                              deductions['commission'],
+                            ),
+
+                            deductionRow(
+                              'Storage',
+                              deductions['storage'],
+                            ),
+
+                            deductionRow(
+                              'Return',
+                              deductions['returnDeduction'],
+                            ),
+
+                            deductionRow(
+                              'Advance',
+                              deductions['advanceAdjusted'],
+                            ),
+
+                            deductionRow(
+                              'Other',
+                              deductions['other'],
+                            ),
+
+                            if (totalDed <= 0)
+                              pw.Text(
+                                'No deductions applied',
+                                style: ts(
+                                  size: 7.5,
+                                  color: textGrey,
+                                ),
+                              ),
                           ],
                         ),
-                      )),
+                        padding: 8,
+                      ),
+
                       pw.SizedBox(height: 8),
-                      borderedBox(pw.Padding(
-                        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                        child: pw.Row(children: [
-                          pw.Text('Payment Method: ',
-                              style: ts(size: 8.5, weight: pw.FontWeight.bold)),
-                          pw.Text(paymentMethod, style: ts(size: 8.5, color: textGrey)),
-                        ]),
-                      )),
+
+                      // PAYMENT
+                      borderedBox(
+                        pw.Row(
+                          children: [
+
+                            pw.Text(
+                              'Payment Method: ',
+                              style: ts(
+                                size: 7.8,
+                                weight:
+                                    pw.FontWeight.bold,
+                                color: textGrey,
+                              ),
+                            ),
+
+                            pw.Text(
+                              paymentMethod,
+                              style: ts(
+                                size: 7.8,
+                                color: textGrey,
+                              ),
+                            ),
+                          ],
+                        ),
+                        padding: 8,
+                      ),
+
                       pw.SizedBox(height: 8),
-                      pw.Text('Terms and Conditions',
-                          style: ts(size: 9, weight: pw.FontWeight.bold, color: green)),
-                      pw.SizedBox(height: 4),
+
+                      // TERMS
+                      pw.Text(
+                        'Terms and Conditions',
+                        style: ts(
+                          size: 8,
+                          weight: pw.FontWeight.bold,
+                          color: green,
+                        ),
+                      ),
+
+                      pw.SizedBox(height: 3),
+
                       pw.Text(
                         '1. Goods once sold will not be taken back.\n'
-                        '2. Payment is due within 30 days of invoice date.\n'
-                        '3. Interest will be charged on overdue payments.\n'
-                        '4. This is a computer generated receipt.',
-                        style: ts(size: 7.5, color: textGrey),
+                        '2. Payment is due within 30 days.\n'
+                        '3. Interest may apply on overdue payments.\n'
+                        '4. Computer generated receipt.',
+                        style: ts(
+                          size: 6.5,
+                          color: textGrey,
+                        ),
                       ),
                     ],
                   ),
                 ),
 
-                pw.SizedBox(width: 8),
+                pw.SizedBox(width: 10),
 
-                // RIGHT
+                // RIGHT SIDE
                 pw.Expanded(
                   flex: 4,
-                  child: borderedBox(pw.Padding(
-                    padding: const pw.EdgeInsets.all(10),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                      children: [
-                        sumRow('Sub Total', fmtRs(grossTotal)),
-                        hline(),
-                        sumRow('Total Deductions', '-${fmtRs(totalDed)}', valColor: redAccent),
-                        hline(),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.symmetric(vertical: 3),
-                          child: pw.Row(
-                            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                            children: [
-                              pw.Text('Grand Total',
-                                  style: ts(size: 11, weight: pw.FontWeight.bold, color: green)),
-                              pw.Text(fmtRs(finalPayable),
-                                  style: ts(size: 11, weight: pw.FontWeight.bold, color: redAccent)),
-                            ],
+                  child: pw.Column(
+                    children: [
+
+                      summaryRow(
+                        'Sub Total',
+                        fmtRs(grossTotal),
+                      ),
+
+                      summaryRow(
+                        'Total Deduction',
+                        '-${fmtRs(totalDed)}',
+                        valueColor: redAccent,
+                      ),
+
+                      summaryRow(
+                        'Grand Total',
+                        fmtRs(finalPayable),
+                        bold: true,
+                        valueColor: orangeAccent,
+                        size: 11,
+                      ),
+
+                      summaryRow(
+                        'Paid',
+                        fmtRs(amountPaid),
+                      ),
+
+                      summaryRow(
+                        'Balance',
+                        fmtRs(amountDue),
+                        valueColor: amountDue > 0
+                            ? redAccent
+                            : green,
+                      ),
+
+                      // STATUS
+                      pw.Container(
+                        width: double.infinity,
+                        padding:
+                            const pw.EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: pw.BoxDecoration(
+                          border: pw.Border.all(
+                            color: lightGreenBorder,
+                            width: 0.8,
                           ),
                         ),
-                        hline(),
-                        pw.SizedBox(height: 3),
-                        sumRow('Amount Paid', fmtRs(amountPaid)),
-                        hline(),
-                        sumRow('Balance Due', fmtRs(amountDue),
-                            bold: true,
-                            valColor: amountDue > 0 ? redAccent : PdfColors.green800),
-                        hline(),
-                        pw.SizedBox(height: 3),
-                        pw.Row(
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        child: pw.Row(
+                          mainAxisAlignment:
+                              pw.MainAxisAlignment.spaceBetween,
                           children: [
-                            pw.Text('Status', style: ts(size: 8, color: textGrey)),
-                            pw.Text(status,
-                                style: ts(
-                                    size: 8,
-                                    weight: pw.FontWeight.bold,
-                                    color: status.toLowerCase() == 'paid'
-                                        ? PdfColors.green800
-                                        : redAccent)),
+
+                            pw.Text(
+                              'Status',
+                              style: ts(
+                                size: 8,
+                              ),
+                            ),
+
+                            pw.Text(
+                              status,
+                              style: ts(
+                                size: 8,
+                                weight:
+                                    pw.FontWeight.bold,
+                                color: status
+                                            .toLowerCase() ==
+                                        'paid'
+                                    ? green
+                                    : orangeAccent,
+                              ),
+                            ),
                           ],
                         ),
-                        pw.SizedBox(height: 16),
-                        pw.Row(children: [
+                      ),
+
+                      pw.SizedBox(height: 8),
+
+                      // SIGNATURES
+                      pw.Row(
+                        children: [
+
                           pw.Expanded(
-                            child: pw.Column(
-                              crossAxisAlignment: pw.CrossAxisAlignment.start,
-                              children: [
-                                pw.Text('Receive By', style: ts(size: 7.5, color: textGrey)),
-                                pw.SizedBox(height: 22),
-                                pw.Divider(thickness: 0.5, color: borderGrey),
-                                pw.Text('Authorized Signatory', style: ts(size: 7, color: textGrey)),
-                              ],
+                            child: pw.Container(
+                              height: 55,
+                              padding:
+                                  const pw.EdgeInsets.all(6),
+                              decoration:
+                                  pw.BoxDecoration(
+                                border: pw.Border.all(
+                                  color:
+                                      lightGreenBorder,
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: pw.Column(
+                                crossAxisAlignment:
+                                    pw.CrossAxisAlignment.start,
+                                mainAxisAlignment:
+                                    pw.MainAxisAlignment.spaceBetween,
+                                children: [
+
+                                  pw.Text(
+                                    'Receive By',
+                                    style: ts(
+                                      size: 6.5,
+                                      weight:
+                                          pw.FontWeight.bold,
+                                      color: green,
+                                    ),
+                                  ),
+
+                                  pw.Text(
+                                    'Authorized Signatory',
+                                    style: ts(
+                                      size: 5.8,
+                                      color: textGrey,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          pw.SizedBox(width: 10),
+
+                          pw.SizedBox(width: 6),
+
                           pw.Expanded(
-                            child: pw.Column(
-                              crossAxisAlignment: pw.CrossAxisAlignment.start,
-                              children: [
-                                pw.Text('Signature', style: ts(size: 7.5, color: textGrey)),
-                                pw.SizedBox(height: 22),
-                                pw.Divider(thickness: 0.5, color: borderGrey),
-                                pw.Text('Farmer Signature', style: ts(size: 7, color: textGrey)),
-                              ],
+                            child: pw.Container(
+                              height: 55,
+                              padding:
+                                  const pw.EdgeInsets.all(6),
+                              decoration:
+                                  pw.BoxDecoration(
+                                border: pw.Border.all(
+                                  color:
+                                      lightGreenBorder,
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: pw.Column(
+                                crossAxisAlignment:
+                                    pw.CrossAxisAlignment.start,
+                                mainAxisAlignment:
+                                    pw.MainAxisAlignment.spaceBetween,
+                                children: [
+
+                                  pw.Text(
+                                    'Signature',
+                                    style: ts(
+                                      size: 6.5,
+                                      weight:
+                                          pw.FontWeight.bold,
+                                      color: green,
+                                    ),
+                                  ),
+
+                                  pw.Text(
+                                    'Farmer Signature',
+                                    style: ts(
+                                      size: 5.8,
+                                      color: textGrey,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ]),
-                      ],
-                    ),
-                  )),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
 
-          // 6. FOOTER
-          pw.SizedBox(height: 10),
-          hline(t: 0.5),
-          pw.SizedBox(height: 6),
-          pw.Center(
-            child: pw.Column(children: [
-              pw.Text(
-                'Purchase Date: ${_fmtDate(r['purchaseDate']?.toString() ?? '')}',
-                style: ts(size: 7.5, color: textGrey),
+            pw.SizedBox(height: 6),
+
+            // FOOTER
+            pw.Container(
+              width: double.infinity,
+              padding:
+                  const pw.EdgeInsets.only(top: 6),
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                  top: pw.BorderSide(
+                    color: lightGreenBorder,
+                    width: 0.8,
+                  ),
+                ),
               ),
-              pw.Text(
-                'Generated on: ${_fmtDateFull(DateTime.now().toIso8601String())}',
-                style: ts(size: 7.5, color: textGrey),
+              child: pw.Column(
+                children: [
+
+                  pw.Text(
+                    'Purchase Date: ${_fmtDate(r['purchaseDate']?.toString() ?? '')}',
+                    style: ts(
+                      size: 6,
+                      color: textGrey,
+                    ),
+                  ),
+
+                  pw.SizedBox(height: 1),
+
+                  pw.Text(
+                    'Generated on ${_fmtDateFull(DateTime.now().toIso8601String())}',
+                    style: ts(
+                      size: 6,
+                      color: textGrey,
+                    ),
+                  ),
+
+                  if (notes.isNotEmpty)
+                    pw.Padding(
+                      padding:
+                          const pw.EdgeInsets.only(top: 2),
+                      child: pw.Text(
+                        notes,
+                        style: ts(
+                          size: 6,
+                          color: textGrey,
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              if (notes.isNotEmpty)
-                pw.Text('Note: $notes', style: ts(size: 7.5, color: textGrey)),
-            ]),
-          ),
-        ],
-      ),
-    ));
+            ),
+          ],
+        );
+      },
+    ),
+  );
 
-    return doc;
-  }
-
-  // ─────────────────────────────────────────────────────────
+  return doc;
+} // ─────────────────────────────────────────────────────────
   //  INIT / DISPOSE
   // ─────────────────────────────────────────────────────────
   @override

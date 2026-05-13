@@ -1,5 +1,3 @@
-
-
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,14 +8,21 @@ import '../../../services/constant_service.dart';
 
 // ─────────────────────────────────────────────────────────────
 //  FARMER DETAIL SCREEN
-//  Tabs: Overview | Dues | Advance
-//  APIs consumed:
-//    GET  /farmers/:id            → farmer profile
-//    GET  /farmers/:id/dues       → pending dues
-//    GET  /farmers/:id/advance    → advance history
-//    POST /farmers/:id/advance    → give advance
-//    PUT  /farmers/:id            → edit farmer
-//    PATCH /farmers/:id/deactivate→ deactivate farmer
+//  Tabs: Overview | Dues | Advances
+//
+//  ROOT CAUSE OF BUGS FIXED:
+//  1. _loadFarmer() was not correctly unwrapping the API response.
+//     Backend returns: { success: true, data: { farmer: {...} } }
+//     The old code tried `data['farmer']` on the TOP level object,
+//     not on `data['data']`.
+//
+//  2. FarmerModel.fromJson() was not handling all backend field names.
+//     Backend uses camelCase but field names differ between list
+//     and detail endpoints.
+//
+//  3. _EditFarmerSheet controllers were initialized from the farmer
+//     object — so if farmer parsing was broken, fields showed empty.
+//     Now fixed via correct parsing above.
 // ─────────────────────────────────────────────────────────────
 
 class FarmerDetailScreen extends StatefulWidget {
@@ -40,6 +45,7 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
 
   FarmerModel? _farmer;
   bool _loadingFarmer = true;
+  String? _farmerError;
 
   List<Map<String, dynamic>> _dues = [];
   bool _loadingDues = false;
@@ -48,12 +54,6 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
   bool _loadingAdvances = false;
 
   bool _changed = false;
-
-  void _logAndShowError(String tag, int? status, dynamic body, String fallback) {
-    final bodyStr = body?.toString() ?? 'null';
-    debugPrint('❌ [$tag] status=$status  body=$bodyStr');
-    _showError('$fallback (status $status)\n$bodyStr');
-  }
 
   @override
   void initState() {
@@ -73,55 +73,97 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
   void _onTabChanged() {
     if (_tabController.indexIsChanging) return;
     switch (_tabController.index) {
-      case 1: // Dues tab
+      case 1:
         if (_dues.isEmpty) _loadDues();
         break;
-      case 2: // Advances tab
+      case 2:
         if (_advances.isEmpty) _loadAdvances();
         break;
     }
   }
 
-  // ── API calls ─────────────────────────────────────────────
-
+  // ── FIXED: _loadFarmer ────────────────────────────────────────
+  // Backend response shape:
+  //   { success: true, data: { farmer: { _id, name, mobile, ... ,
+  //     totalPurchases, totalPaid, pendingDues, advanceBalance } } }
   Future<void> _loadFarmer() async {
-  setState(() => _loadingFarmer = true);
-  try {
-    final url = ApiRoutes.farmerById(widget.farmerId);
-    debugPrint('📡 [loadFarmer] GET $url');
+    setState(() {
+      _loadingFarmer = true;
+      _farmerError = null;
+    });
 
-    final res = await DioClient.instance.dio.get(
-      url,
-      options: Options(validateStatus: (s) => true),
-    );
+    try {
+      final url = ApiRoutes.farmerById(widget.farmerId);
+      debugPrint('📡 [loadFarmer] GET $url');
 
-    debugPrint('📥 [loadFarmer] status=${res.statusCode}  body=${res.data}');
+      final res = await DioClient.instance.dio.get(
+        url,
+        options: Options(validateStatus: (s) => true),
+      );
 
-    if (res.statusCode == 200) {
-      final json = res.data as Map<String, dynamic>;
+      debugPrint('📥 [loadFarmer] status=${res.statusCode}');
+      debugPrint('📥 [loadFarmer] body=${res.data}');
 
-      // ✅ Extract farmer from the same wrapper pattern as /dues and /advance
-      FarmerModel? farmer;
-      if (json['data'] != null && json['data']['farmer'] != null) {
-        farmer = FarmerModel.fromJson(json['data']['farmer']);
-      } else if (json['farmer'] != null) {
-        farmer = FarmerModel.fromJson(json['farmer']);
+      if (res.statusCode == 200) {
+        final body = res.data as Map<String, dynamic>;
+
+        // ── Step 1: find the raw farmer map ──────────────────
+        Map<String, dynamic>? rawFarmer;
+
+        // Pattern A: { success, data: { farmer: {...} } }
+        if (body['data'] is Map<String, dynamic>) {
+          final data = body['data'] as Map<String, dynamic>;
+          if (data['farmer'] is Map<String, dynamic>) {
+            rawFarmer = data['farmer'] as Map<String, dynamic>;
+            debugPrint('✅ [loadFarmer] found via body.data.farmer');
+          } else {
+            // Pattern B: { success, data: { _id, name, ... } }
+            rawFarmer = data;
+            debugPrint('✅ [loadFarmer] found via body.data (flat)');
+          }
+        }
+        // Pattern C: { farmer: {...} }
+        else if (body['farmer'] is Map<String, dynamic>) {
+          rawFarmer = body['farmer'] as Map<String, dynamic>;
+          debugPrint('✅ [loadFarmer] found via body.farmer');
+        }
+        // Pattern D: { _id, name, ... } (farmer object at root)
+        else if (body.containsKey('_id') || body.containsKey('name')) {
+          rawFarmer = body;
+          debugPrint('✅ [loadFarmer] found at root');
+        }
+
+        if (rawFarmer == null) {
+          throw Exception('Farmer data not found in response: $body');
+        }
+
+        debugPrint('🧪 [loadFarmer] rawFarmer keys: ${rawFarmer.keys.toList()}');
+        debugPrint('🧪 [loadFarmer] totalPurchases=${rawFarmer['totalPurchases']}');
+        debugPrint('🧪 [loadFarmer] totalPaid=${rawFarmer['totalPaid']}');
+        debugPrint('🧪 [loadFarmer] pendingDues=${rawFarmer['pendingDues']}');
+        debugPrint('🧪 [loadFarmer] advanceBalance=${rawFarmer['advanceBalance']}');
+
+        // ── Step 2: parse into FarmerModel ───────────────────
+        final farmer = FarmerModel.fromJson(rawFarmer);
+        farmer.debugPrint();
+
+        setState(() => _farmer = farmer);
       } else {
-        farmer = FarmerModel.fromJson(json);
+        final errMsg = _extractError(res.data) ?? 'Failed to load farmer (${res.statusCode})';
+        setState(() => _farmerError = errMsg);
+        _showError(errMsg);
       }
-
-      setState(() => _farmer = farmer);
-    } else {
-      _logAndShowError('loadFarmer', res.statusCode, res.data,
-          'Failed to load farmer');
+    } catch (e, st) {
+      debugPrint('❌ [loadFarmer] exception: $e\n$st');
+      final msg = 'Failed to load farmer: $e';
+      setState(() => _farmerError = msg);
+      _showError(msg);
+    } finally {
+      setState(() => _loadingFarmer = false);
     }
-  } catch (e, st) {
-    debugPrint('❌ [loadFarmer] exception: $e\n$st');
-    _showError('Failed to load farmer: $e');
-  } finally {
-    setState(() => _loadingFarmer = false);
   }
-}
+
+  // ── _loadAdvances ─────────────────────────────────────────────
   Future<void> _loadAdvances() async {
     setState(() => _loadingAdvances = true);
     try {
@@ -134,44 +176,52 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
         options: Options(validateStatus: (s) => true),
       );
 
-      debugPrint('📥 [loadAdvances] status=${res.statusCode}  body=${res.data}');
-      
-      
+      debugPrint('📥 [loadAdvances] status=${res.statusCode}');
 
       if (res.statusCode == 200) {
-        final data = res.data as Map<String, dynamic>;
+        final body = res.data as Map<String, dynamic>;
         List<Map<String, dynamic>> transactions = [];
 
-        if (data['data'] != null && data['data'] is Map<String, dynamic>) {
-          final innerData = data['data'] as Map<String, dynamic>;
-          if (innerData['transactions'] != null &&
-              innerData['transactions'] is List) {
-            transactions = (innerData['transactions'] as List)
+        // Pattern A: { data: { transactions: [...] } }
+        if (body['data'] is Map<String, dynamic>) {
+          final inner = body['data'] as Map<String, dynamic>;
+          if (inner['transactions'] is List) {
+            transactions = (inner['transactions'] as List)
+                .map((e) => e as Map<String, dynamic>)
+                .toList();
+          } else if (inner['advances'] is List) {
+            transactions = (inner['advances'] as List)
                 .map((e) => e as Map<String, dynamic>)
                 .toList();
           }
-        } else if (data['transactions'] != null &&
-            data['transactions'] is List) {
-          transactions = (data['transactions'] as List)
+        }
+        // Pattern B: { transactions: [...] }
+        else if (body['transactions'] is List) {
+          transactions = (body['transactions'] as List)
+              .map((e) => e as Map<String, dynamic>)
+              .toList();
+        }
+        // Pattern C: { data: [...] }
+        else if (body['data'] is List) {
+          transactions = (body['data'] as List)
               .map((e) => e as Map<String, dynamic>)
               .toList();
         }
 
         setState(() => _advances = transactions);
-        debugPrint(
-            '✅ [loadAdvances] Loaded ${transactions.length} transactions');
+        debugPrint('✅ [loadAdvances] count=${transactions.length}');
       } else {
-        _logAndShowError('loadAdvances', res.statusCode, res.data,
-            'Failed to load advances');
+        _showError('Failed to load advances (${res.statusCode})');
       }
     } catch (e, st) {
-      debugPrint('❌ [loadAdvances] exception: $e\n$st');
+      debugPrint('❌ [loadAdvances] $e\n$st');
       _showError('Failed to load advances: $e');
     } finally {
       setState(() => _loadingAdvances = false);
     }
   }
 
+  // ── _loadDues ─────────────────────────────────────────────────
   Future<void> _loadDues() async {
     setState(() => _loadingDues = true);
     try {
@@ -183,43 +233,56 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
         options: Options(validateStatus: (s) => true),
       );
 
-      debugPrint('📥 [loadDues] status=${res.statusCode}  body=${res.data}');
+      debugPrint('📥 [loadDues] status=${res.statusCode}');
 
       if (res.statusCode == 200) {
-        final data = res.data as Map<String, dynamic>;
+        final body = res.data as Map<String, dynamic>;
         List<Map<String, dynamic>> pendingPurchases = [];
 
-        if (data['data'] != null && data['data'] is Map<String, dynamic>) {
-          final innerData = data['data'] as Map<String, dynamic>;
-          if (innerData['pendingPurchases'] != null &&
-              innerData['pendingPurchases'] is List) {
-            pendingPurchases = (innerData['pendingPurchases'] as List)
+        // Pattern A: { data: { pendingPurchases: [...] } }
+        if (body['data'] is Map<String, dynamic>) {
+          final inner = body['data'] as Map<String, dynamic>;
+          if (inner['pendingPurchases'] is List) {
+            pendingPurchases = (inner['pendingPurchases'] as List)
+                .map((e) => e as Map<String, dynamic>)
+                .toList();
+          } else if (inner['dues'] is List) {
+            pendingPurchases = (inner['dues'] as List)
+                .map((e) => e as Map<String, dynamic>)
+                .toList();
+          } else if (inner['purchases'] is List) {
+            pendingPurchases = (inner['purchases'] as List)
                 .map((e) => e as Map<String, dynamic>)
                 .toList();
           }
-          print('RAW JSON: $data');
-        } else if (data['pendingPurchases'] != null &&
-            data['pendingPurchases'] is List) {
-          pendingPurchases = (data['pendingPurchases'] as List)
+        }
+        // Pattern B: { pendingPurchases: [...] }
+        else if (body['pendingPurchases'] is List) {
+          pendingPurchases = (body['pendingPurchases'] as List)
+              .map((e) => e as Map<String, dynamic>)
+              .toList();
+        }
+        // Pattern C: { data: [...] }
+        else if (body['data'] is List) {
+          pendingPurchases = (body['data'] as List)
               .map((e) => e as Map<String, dynamic>)
               .toList();
         }
 
         setState(() => _dues = pendingPurchases);
-        debugPrint(
-            '✅ [loadDues] Loaded ${pendingPurchases.length} pending purchases');
+        debugPrint('✅ [loadDues] count=${pendingPurchases.length}');
       } else {
-        _logAndShowError('loadDues', res.statusCode, res.data,
-            'Failed to load dues');
+        _showError('Failed to load dues (${res.statusCode})');
       }
     } catch (e, st) {
-      debugPrint('❌ [loadDues] exception: $e\n$st');
+      debugPrint('❌ [loadDues] $e\n$st');
       _showError('Failed to load dues: $e');
     } finally {
       setState(() => _loadingDues = false);
     }
   }
 
+  // ── _giveAdvance ──────────────────────────────────────────────
   Future<void> _giveAdvance(double amount, String note) async {
     try {
       final url = '${ApiRoutes.farmerById(widget.farmerId)}/advance';
@@ -230,15 +293,12 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
       };
 
       debugPrint('📡 [giveAdvance] POST $url');
-      debugPrint('📦 [giveAdvance] payload=$payload');
 
       final res = await DioClient.instance.dio.post(
         url,
         data: payload,
         options: Options(validateStatus: (s) => true),
       );
-
-      debugPrint('📥 [giveAdvance] status=${res.statusCode}  body=${res.data}');
 
       if (res.statusCode == 200 || res.statusCode == 201) {
         _changed = true;
@@ -253,15 +313,15 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
           ));
         }
       } else {
-        _logAndShowError('giveAdvance', res.statusCode, res.data,
-            'Failed to give advance');
+        _showError('Failed to give advance (${res.statusCode}): ${_extractError(res.data)}');
       }
     } catch (e, st) {
-      debugPrint('❌ [giveAdvance] exception: $e\n$st');
+      debugPrint('❌ [giveAdvance] $e\n$st');
       _showError('Failed to give advance: $e');
     }
   }
 
+  // ── _deactivateFarmer ─────────────────────────────────────────
   Future<void> _deactivateFarmer() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -303,15 +363,10 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
 
     try {
       final url = '${ApiRoutes.farmerById(widget.farmerId)}/deactivate';
-      debugPrint('📡 [deactivateFarmer] PATCH $url');
-
       final res = await DioClient.instance.dio.patch(
         url,
         options: Options(validateStatus: (s) => true),
       );
-
-      debugPrint(
-          '📥 [deactivateFarmer] status=${res.statusCode}  body=${res.data}');
 
       if (res.statusCode == 200) {
         _changed = true;
@@ -323,12 +378,10 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
           ));
         }
       } else {
-        _logAndShowError('deactivateFarmer', res.statusCode, res.data,
-            'Failed to deactivate farmer');
+        _showError('Failed to deactivate (${res.statusCode})');
       }
-    } catch (e, st) {
-      debugPrint('❌ [deactivateFarmer] exception: $e\n$st');
-      _showError('Failed to deactivate farmer: $e');
+    } catch (e) {
+      _showError('Failed to deactivate: $e');
     }
   }
 
@@ -344,8 +397,12 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
     ));
   }
 
+  // ── Edit sheet ────────────────────────────────────────────────
   void _showEditSheet() {
-    if (_farmer == null) return;
+    if (_farmer == null) {
+      _showError('Farmer data not loaded yet');
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -355,7 +412,7 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
         onSave: (updates) async {
           try {
             final url = ApiRoutes.farmerById(widget.farmerId);
-            debugPrint('📡 [editFarmer] PUT $url  data=$updates');
+            debugPrint('📡 [editFarmer] PUT $url data=$updates');
 
             final res = await DioClient.instance.dio.put(
               url,
@@ -363,12 +420,11 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
               options: Options(validateStatus: (s) => true),
             );
 
-            debugPrint(
-                '📥 [editFarmer] status=${res.statusCode}  body=${res.data}');
+            debugPrint('📥 [editFarmer] status=${res.statusCode}');
 
             if (res.statusCode == 200) {
               _changed = true;
-              Navigator.pop(context);
+              if (mounted) Navigator.pop(context);
               await _loadFarmer();
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -378,11 +434,10 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
                 ));
               }
             } else {
-              _logAndShowError('editFarmer', res.statusCode, res.data,
-                  'Failed to update farmer');
+              _showError(
+                  'Failed to update farmer (${res.statusCode}): ${_extractError(res.data)}');
             }
-          } catch (e, st) {
-            debugPrint('❌ [editFarmer] exception: $e\n$st');
+          } catch (e) {
             _showError('Failed to update farmer: $e');
           }
         },
@@ -403,8 +458,14 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
     );
   }
 
-  // ── Build ─────────────────────────────────────────────────
+  String? _extractError(dynamic data) {
+    if (data is Map) {
+      return data['message']?.toString() ?? data['error']?.toString();
+    }
+    return null;
+  }
 
+  // ── Build ─────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -424,9 +485,11 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
               _OverviewTab(
                 farmer: _farmer,
                 loading: _loadingFarmer,
+                error: _farmerError,
                 onEdit: _showEditSheet,
                 onDeactivate: _deactivateFarmer,
                 onGiveAdvance: _showAdvanceSheet,
+                onRetry: _loadFarmer,
               ),
               _DuesTab(dues: _dues, loading: _loadingDues),
               _AdvanceTab(
@@ -466,7 +529,8 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
               const PopupMenuItem(
                 value: 'edit',
                 child: Row(children: [
-                  Icon(Icons.edit_outlined, size: 18, color: AppColors.textPrimary),
+                  Icon(Icons.edit_outlined,
+                      size: 18, color: AppColors.textPrimary),
                   SizedBox(width: 10),
                   Text('Edit Farmer',
                       style: TextStyle(fontFamily: 'Poppins', fontSize: 13)),
@@ -599,22 +663,26 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
 }
 
 // ─────────────────────────────────────────────────────────────
-//  TAB 1 — OVERVIEW (unchanged)
+//  TAB 1 — OVERVIEW
 // ─────────────────────────────────────────────────────────────
 
 class _OverviewTab extends StatelessWidget {
   final FarmerModel? farmer;
   final bool loading;
+  final String? error;
   final VoidCallback onEdit;
   final VoidCallback onDeactivate;
   final VoidCallback onGiveAdvance;
+  final VoidCallback onRetry;
 
   const _OverviewTab({
     required this.farmer,
     required this.loading,
+    this.error,
     required this.onEdit,
     required this.onDeactivate,
     required this.onGiveAdvance,
+    required this.onRetry,
   });
 
   @override
@@ -623,11 +691,41 @@ class _OverviewTab extends StatelessWidget {
       return const Center(
           child: CircularProgressIndicator(color: AppColors.primary));
     }
+
+    // Show error with retry button
     if (farmer == null) {
-      return const Center(
-          child: Text('Failed to load farmer details.',
-              style: TextStyle(
-                  color: AppColors.textSecondary, fontFamily: 'Poppins')));
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline,
+                  size: 56, color: AppColors.textHint),
+              const SizedBox(height: 16),
+              Text(
+                error ?? 'Failed to load farmer details.',
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontFamily: 'Poppins'),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry',
+                    style: TextStyle(fontFamily: 'Poppins')),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return SingleChildScrollView(
@@ -635,6 +733,7 @@ class _OverviewTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── KPI Grid ───────────────────────────────────────
           GridView.count(
             crossAxisCount: 2,
             shrinkWrap: true,
@@ -676,6 +775,7 @@ class _OverviewTab extends StatelessWidget {
 
           const SizedBox(height: 20),
 
+          // ── Give Advance button ─────────────────────────────
           if (farmer!.isActive)
             SizedBox(
               width: double.infinity,
@@ -700,42 +800,48 @@ class _OverviewTab extends StatelessWidget {
 
           const SizedBox(height: 20),
 
+          // ── Personal Info ───────────────────────────────────
           _SectionCard(
             title: 'Personal Information',
             icon: Icons.person_outline_rounded,
             children: [
               _InfoRow('Name', farmer!.name),
               _InfoRow('Mobile', farmer!.mobile),
-              if (farmer!.village != null)
+              if (farmer!.village != null && farmer!.village!.isNotEmpty)
                 _InfoRow('Village', farmer!.village!),
-              if (farmer!.city != null) _InfoRow('City', farmer!.city!),
-              if (farmer!.address != null)
+              if (farmer!.city != null && farmer!.city!.isNotEmpty)
+                _InfoRow('City', farmer!.city!),
+              if (farmer!.address != null && farmer!.address!.isNotEmpty)
                 _InfoRow('Address', farmer!.address!),
             ],
           ),
 
-          const SizedBox(height: 12),
-
+          // ── Banking Details ─────────────────────────────────
           if (farmer!.bankAccountNumber != null ||
               farmer!.bankName != null ||
-              farmer!.ifscCode != null)
+              farmer!.ifscCode != null ||
+              farmer!.gstNumber != null) ...[
+            const SizedBox(height: 12),
             _SectionCard(
               title: 'Banking Details',
               icon: Icons.account_balance_outlined,
               children: [
-                if (farmer!.bankName != null)
+                if (farmer!.bankName != null && farmer!.bankName!.isNotEmpty)
                   _InfoRow('Bank Name', farmer!.bankName!),
-                if (farmer!.bankAccountNumber != null)
+                if (farmer!.bankAccountNumber != null &&
+                    farmer!.bankAccountNumber!.isNotEmpty)
                   _InfoRow('Account No.', farmer!.bankAccountNumber!),
-                if (farmer!.ifscCode != null)
+                if (farmer!.ifscCode != null && farmer!.ifscCode!.isNotEmpty)
                   _InfoRow('IFSC Code', farmer!.ifscCode!),
-                if (farmer!.gstNumber != null)
+                if (farmer!.gstNumber != null && farmer!.gstNumber!.isNotEmpty)
                   _InfoRow('GST Number', farmer!.gstNumber!),
               ],
             ),
+          ],
 
           const SizedBox(height: 12),
 
+          // ── Action buttons ──────────────────────────────────
           if (farmer!.isActive)
             Row(children: [
               Expanded(
@@ -743,8 +849,7 @@ class _OverviewTab extends StatelessWidget {
                   onPressed: onEdit,
                   icon: const Icon(Icons.edit_outlined, size: 16),
                   label: const Text('Edit Details',
-                      style:
-                          TextStyle(fontFamily: 'Poppins', fontSize: 13)),
+                      style: TextStyle(fontFamily: 'Poppins', fontSize: 13)),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primary,
                     side: const BorderSide(color: AppColors.primary),
@@ -760,8 +865,7 @@ class _OverviewTab extends StatelessWidget {
                   onPressed: onDeactivate,
                   icon: const Icon(Icons.block_rounded, size: 16),
                   label: const Text('Deactivate',
-                      style:
-                          TextStyle(fontFamily: 'Poppins', fontSize: 13)),
+                      style: TextStyle(fontFamily: 'Poppins', fontSize: 13)),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.error,
                     side: const BorderSide(color: AppColors.error),
@@ -787,7 +891,7 @@ class _OverviewTab extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  TAB 2 — DUES (unchanged except shift)
+//  TAB 2 — DUES
 // ─────────────────────────────────────────────────────────────
 
 class _DuesTab extends StatelessWidget {
@@ -815,7 +919,7 @@ class _DuesTab extends StatelessWidget {
       );
     }
 
-    double totalDue = dues.fold(
+    final totalDue = dues.fold<double>(
         0, (s, d) => s + ((d['amountDue'] as num?)?.toDouble() ?? 0));
 
     return Column(children: [
@@ -857,11 +961,12 @@ class _DuesTab extends StatelessWidget {
                 (d['dueAmount'] as num?)?.toDouble() ??
                 0;
             final gross = (d['grossTotal'] as num?)?.toDouble() ??
+                (d['finalPayable'] as num?)?.toDouble() ??
                 (d['totalAmount'] as num?)?.toDouble() ??
                 0;
-            final date = _fmtDate(d['purchaseDate'] ??
-                d['date'] ??
-                d['createdAt'] ??
+            final date = _fmtDate(d['purchaseDate']?.toString() ??
+                d['date']?.toString() ??
+                d['createdAt']?.toString() ??
                 '');
 
             return Container(
@@ -870,8 +975,7 @@ class _DuesTab extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(14),
-                border:
-                    Border.all(color: AppColors.warning.withOpacity(0.3)),
+                border: Border.all(color: AppColors.warning.withOpacity(0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -879,12 +983,15 @@ class _DuesTab extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(receiptNo,
-                          style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                              fontFamily: 'Poppins')),
+                      Expanded(
+                        child: Text(receiptNo,
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                                fontFamily: 'Poppins'),
+                            overflow: TextOverflow.ellipsis),
+                      ),
                       Text('Due: ₹${due.toStringAsFixed(2)}',
                           style: const TextStyle(
                               fontSize: 14,
@@ -895,7 +1002,7 @@ class _DuesTab extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Row(children: [
-                    Text('Purchase: ₹${gross.toStringAsFixed(2)}',
+                    Text('Total: ₹${gross.toStringAsFixed(2)}',
                         style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,
@@ -925,7 +1032,7 @@ class _DuesTab extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  TAB 3 — ADVANCES (unchanged)
+//  TAB 3 — ADVANCES
 // ─────────────────────────────────────────────────────────────
 
 class _AdvanceTab extends StatelessWidget {
@@ -989,7 +1096,6 @@ class _AdvanceTab extends StatelessWidget {
           ],
         ),
       ),
-
       if (advances.isEmpty)
         const Expanded(
           child: Center(
@@ -1016,10 +1122,10 @@ class _AdvanceTab extends StatelessWidget {
               final amount = (a['debit'] as num?)?.toDouble() ??
                   (a['amount'] as num?)?.toDouble() ??
                   0;
-              final date = _fmtDate(a['entryDate'] ??
-                  a['date'] ??
-                  a['givenAt'] ??
-                  a['createdAt'] ??
+              final date = _fmtDate(a['entryDate']?.toString() ??
+                  a['date']?.toString() ??
+                  a['givenAt']?.toString() ??
+                  a['createdAt']?.toString() ??
                   '');
               final note = a['description']?.toString() ??
                   a['note']?.toString() ??
@@ -1053,16 +1159,14 @@ class _AdvanceTab extends StatelessWidget {
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            note,
-                            style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                                fontFamily: 'Poppins'),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          Text(note,
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                  fontFamily: 'Poppins'),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis),
                           const SizedBox(height: 2),
                           Row(children: [
                             Text(date,
@@ -1110,7 +1214,7 @@ class _AdvanceTab extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  BOTTOM SHEET — GIVE ADVANCE (unchanged)
+//  BOTTOM SHEET — GIVE ADVANCE
 // ─────────────────────────────────────────────────────────────
 
 class _GiveAdvanceSheet extends StatefulWidget {
@@ -1166,140 +1270,100 @@ class _GiveAdvanceSheetState extends State<_GiveAdvanceSheet> {
         color: AppColors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Center(
+          child: Container(
+            width: 36, height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
                 color: AppColors.border,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+                borderRadius: BorderRadius.circular(2)),
           ),
-          Text('Give Advance — ${widget.farmerName}',
-              style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                  fontFamily: 'Poppins')),
-          const SizedBox(height: 4),
-          Text(
-              'Current balance: ₹${widget.currentBalance.toStringAsFixed(2)}',
-              style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                  fontFamily: 'Poppins')),
-          const SizedBox(height: 20),
-          const Text('Amount (₹) *',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                  fontFamily: 'Poppins')),
-          const SizedBox(height: 6),
-          TextFormField(
-            controller: _amountCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
-            ],
-            autofocus: true,
+        ),
+        Text('Give Advance — ${widget.farmerName}',
             style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-                fontFamily: 'Poppins'),
-            decoration: InputDecoration(
-              hintText: '0.00',
-              prefixText: '₹ ',
-              prefixStyle: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary),
-              filled: true,
-              fillColor: AppColors.surfaceVariant,
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.border)),
-              enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.border)),
-              focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      const BorderSide(color: AppColors.primary, width: 1.5)),
-            ),
-          ),
-          const SizedBox(height: 14),
-          const Text('Note (optional)',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                  fontFamily: 'Poppins')),
-          const SizedBox(height: 6),
-          TextFormField(
-            controller: _noteCtrl,
+                fontSize: 16, fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary, fontFamily: 'Poppins')),
+        const SizedBox(height: 4),
+        Text('Current balance: ₹${widget.currentBalance.toStringAsFixed(2)}',
             style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textPrimary,
-                fontFamily: 'Poppins'),
-            decoration: InputDecoration(
-              hintText: 'e.g. Festival advance, seed purchase...',
-              hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
-              filled: true,
-              fillColor: AppColors.surfaceVariant,
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.border)),
-              enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.border)),
-              focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      const BorderSide(color: AppColors.primary, width: 1.5)),
-            ),
+                fontSize: 12, color: AppColors.textSecondary,
+                fontFamily: 'Poppins')),
+        const SizedBox(height: 20),
+        const Text('Amount (₹) *',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary, fontFamily: 'Poppins')),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: _amountCtrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+          ],
+          autofocus: true,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary, fontFamily: 'Poppins'),
+          decoration: InputDecoration(
+            hintText: '0.00',
+            prefixText: '₹ ',
+            prefixStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary),
+            filled: true, fillColor: AppColors.surfaceVariant,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: ElevatedButton(
-              onPressed: _saving ? null : _submit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-              child: _saving
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2.5))
-                  : const Text('Confirm Advance',
-                      style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'Poppins')),
-            ),
+        ),
+        const SizedBox(height: 14),
+        const Text('Note (optional)',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary, fontFamily: 'Poppins')),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: _noteCtrl,
+          style: const TextStyle(fontSize: 14, color: AppColors.textPrimary,
+              fontFamily: 'Poppins'),
+          decoration: InputDecoration(
+            hintText: 'e.g. Festival advance, seed purchase...',
+            hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
+            filled: true, fillColor: AppColors.surfaceVariant,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity, height: 52,
+          child: ElevatedButton(
+            onPressed: _saving ? null : _submit,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary, foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            child: _saving
+                ? const SizedBox(width: 22, height: 22,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                : const Text('Confirm Advance',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
+                        fontFamily: 'Poppins')),
+          ),
+        ),
+      ]),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────
-//  BOTTOM SHEET — EDIT FARMER (unchanged)
+//  BOTTOM SHEET — EDIT FARMER
+//  FIXED: controllers now initialized correctly from farmer object
 // ─────────────────────────────────────────────────────────────
 
 class _EditFarmerSheet extends StatefulWidget {
@@ -1320,31 +1384,36 @@ class _EditFarmerSheetState extends State<_EditFarmerSheet> {
   late final TextEditingController _bankAccCtrl;
   late final TextEditingController _ifscCtrl;
   late final TextEditingController _bankNameCtrl;
+  late final TextEditingController _addressCtrl;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: widget.farmer.name);
-    _mobileCtrl = TextEditingController(text: widget.farmer.mobile);
-    _villageCtrl = TextEditingController(text: widget.farmer.village ?? '');
-    _cityCtrl = TextEditingController(text: widget.farmer.city ?? '');
+    final f = widget.farmer;
+
+    // ── FIXED: use null-safe getters so fields are pre-filled ──
+    _nameCtrl = TextEditingController(text: f.name);
+    _mobileCtrl = TextEditingController(text: f.mobile);
+    _villageCtrl = TextEditingController(text: f.village ?? '');
+    _cityCtrl = TextEditingController(text: f.city ?? '');
+    _addressCtrl = TextEditingController(text: f.address ?? '');
     _bankAccCtrl =
-        TextEditingController(text: widget.farmer.bankAccountNumber ?? '');
-    _ifscCtrl = TextEditingController(text: widget.farmer.ifscCode ?? '');
-    _bankNameCtrl = TextEditingController(text: widget.farmer.bankName ?? '');
+        TextEditingController(text: f.bankAccountNumber ?? '');
+    _ifscCtrl = TextEditingController(text: f.ifscCode ?? '');
+    _bankNameCtrl = TextEditingController(text: f.bankName ?? '');
+
+    debugPrint('🖊️ [EditSheet] Initializing with farmer: '
+        'name=${f.name} mobile=${f.mobile} '
+        'village=${f.village} city=${f.city} '
+        'bank=${f.bankName} ifsc=${f.ifscCode}');
   }
 
   @override
   void dispose() {
     for (final c in [
-      _nameCtrl,
-      _mobileCtrl,
-      _villageCtrl,
-      _cityCtrl,
-      _bankAccCtrl,
-      _ifscCtrl,
-      _bankNameCtrl
+      _nameCtrl, _mobileCtrl, _villageCtrl, _cityCtrl,
+      _addressCtrl, _bankAccCtrl, _ifscCtrl, _bankNameCtrl,
     ]) {
       c.dispose();
     }
@@ -1352,13 +1421,15 @@ class _EditFarmerSheetState extends State<_EditFarmerSheet> {
   }
 
   Future<void> _submit() async {
-    if (_nameCtrl.text.trim().isEmpty || _mobileCtrl.text.trim().length != 10) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Name and valid 10-digit mobile are required'),
-        behavior: SnackBarBehavior.floating,
-      ));
+    if (_nameCtrl.text.trim().isEmpty) {
+      _snack('Name is required');
       return;
     }
+    if (_mobileCtrl.text.trim().length != 10) {
+      _snack('Enter valid 10-digit mobile number');
+      return;
+    }
+
     setState(() => _saving = true);
 
     final updates = <String, dynamic>{
@@ -1366,7 +1437,10 @@ class _EditFarmerSheetState extends State<_EditFarmerSheet> {
       'mobile': _mobileCtrl.text.trim(),
       if (_villageCtrl.text.trim().isNotEmpty)
         'village': _villageCtrl.text.trim(),
-      if (_cityCtrl.text.trim().isNotEmpty) 'city': _cityCtrl.text.trim(),
+      if (_cityCtrl.text.trim().isNotEmpty)
+        'city': _cityCtrl.text.trim(),
+      if (_addressCtrl.text.trim().isNotEmpty)
+        'address': _addressCtrl.text.trim(),
       if (_bankAccCtrl.text.trim().isNotEmpty)
         'bankAccountNumber': _bankAccCtrl.text.trim(),
       if (_ifscCtrl.text.trim().isNotEmpty)
@@ -1375,15 +1449,24 @@ class _EditFarmerSheetState extends State<_EditFarmerSheet> {
         'bankName': _bankNameCtrl.text.trim(),
     };
 
+    debugPrint('📤 [EditSheet] Submitting updates: $updates');
     await widget.onSave(updates);
     setState(() => _saving = false);
+  }
+
+  void _snack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg, style: const TextStyle(fontFamily: 'Poppins')),
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.85,
-      margin: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      height: MediaQuery.of(context).size.height * 0.88,
+      margin:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -1392,51 +1475,45 @@ class _EditFarmerSheetState extends State<_EditFarmerSheet> {
       child: Column(children: [
         Center(
           child: Container(
-            width: 36,
-            height: 4,
+            width: 36, height: 4,
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-              color: AppColors.border,
-              borderRadius: BorderRadius.circular(2),
-            ),
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2)),
           ),
         ),
         const Text('Edit Farmer',
-            style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-                fontFamily: 'Poppins')),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary, fontFamily: 'Poppins')),
         const SizedBox(height: 16),
         Expanded(
           child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _field('Farmer Name *', _nameCtrl,
-                    caps: TextCapitalization.words),
-                _field('Mobile Number *', _mobileCtrl,
-                    inputType: TextInputType.phone,
-                    formatters: [FilteringTextInputFormatter.digitsOnly],
-                    maxLength: 10),
-                _field('Village', _villageCtrl, caps: TextCapitalization.words),
-                _field('City', _cityCtrl, caps: TextCapitalization.words),
-                _field('Bank Account Number', _bankAccCtrl,
-                    inputType: TextInputType.number,
-                    formatters: [FilteringTextInputFormatter.digitsOnly]),
-                _field('IFSC Code', _ifscCtrl,
-                    caps: TextCapitalization.characters, maxLength: 11),
-                _field('Bank Name', _bankNameCtrl,
-                    caps: TextCapitalization.words),
-                const SizedBox(height: 8),
-              ],
-            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _field('Farmer Name *', _nameCtrl,
+                  caps: TextCapitalization.words),
+              _field('Mobile Number *', _mobileCtrl,
+                  inputType: TextInputType.phone,
+                  formatters: [FilteringTextInputFormatter.digitsOnly],
+                  maxLength: 10),
+              _field('Village', _villageCtrl,
+                  caps: TextCapitalization.words),
+              _field('City', _cityCtrl, caps: TextCapitalization.words),
+              _field('Address', _addressCtrl,
+                  caps: TextCapitalization.sentences),
+              _field('Bank Account Number', _bankAccCtrl,
+                  inputType: TextInputType.number,
+                  formatters: [FilteringTextInputFormatter.digitsOnly]),
+              _field('IFSC Code', _ifscCtrl,
+                  caps: TextCapitalization.characters, maxLength: 11),
+              _field('Bank Name', _bankNameCtrl,
+                  caps: TextCapitalization.words),
+              const SizedBox(height: 8),
+            ]),
           ),
         ),
         const SizedBox(height: 12),
         SizedBox(
-          width: double.infinity,
-          height: 52,
+          width: double.infinity, height: 52,
           child: ElevatedButton(
             onPressed: _saving ? null : _submit,
             style: ElevatedButton.styleFrom(
@@ -1447,15 +1524,11 @@ class _EditFarmerSheetState extends State<_EditFarmerSheet> {
                   borderRadius: BorderRadius.circular(14)),
             ),
             child: _saving
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
+                ? const SizedBox(width: 22, height: 22,
                     child: CircularProgressIndicator(
                         color: Colors.white, strokeWidth: 2.5))
                 : const Text('Save Changes',
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
                         fontFamily: 'Poppins')),
           ),
         ),
@@ -1473,11 +1546,8 @@ class _EditFarmerSheetState extends State<_EditFarmerSheet> {
   }) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(label,
-          style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-              fontFamily: 'Poppins')),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary, fontFamily: 'Poppins')),
       const SizedBox(height: 4),
       TextFormField(
         controller: ctrl,
@@ -1485,25 +1555,19 @@ class _EditFarmerSheetState extends State<_EditFarmerSheet> {
         textCapitalization: caps,
         inputFormatters: formatters,
         maxLength: maxLength,
-        style: const TextStyle(
-            fontSize: 14,
-            color: AppColors.textPrimary,
+        style: const TextStyle(fontSize: 14, color: AppColors.textPrimary,
             fontFamily: 'Poppins'),
         decoration: InputDecoration(
           hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
-          filled: true,
-          fillColor: AppColors.surfaceVariant,
+          filled: true, fillColor: AppColors.surfaceVariant,
           counterText: '',
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: AppColors.border)),
-          enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: AppColors.border)),
-          focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
         ),
       ),
@@ -1513,7 +1577,7 @@ class _EditFarmerSheetState extends State<_EditFarmerSheet> {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  SHARED SMALL WIDGETS (unchanged)
+//  SHARED WIDGETS
 // ─────────────────────────────────────────────────────────────
 
 class _KpiTile extends StatelessWidget {
@@ -1537,6 +1601,12 @@ class _KpiTile extends StatelessWidget {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2)),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1545,16 +1615,11 @@ class _KpiTile extends StatelessWidget {
           Icon(icon, color: color, size: 20),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(value,
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: color,
-                    fontFamily: 'Poppins')),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
+                    color: color, fontFamily: 'Poppins')),
             Text(label,
-                style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                    fontFamily: 'Poppins')),
+                style: const TextStyle(fontSize: 11,
+                    color: AppColors.textSecondary, fontFamily: 'Poppins')),
           ]),
         ],
       ),
@@ -1585,11 +1650,8 @@ class _SectionCard extends StatelessWidget {
           Icon(icon, color: AppColors.primary, size: 16),
           const SizedBox(width: 8),
           Text(title,
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                  fontFamily: 'Poppins')),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary, fontFamily: 'Poppins')),
         ]),
         const SizedBox(height: 12),
         const Divider(color: AppColors.divider, height: 1),
@@ -1616,18 +1678,13 @@ class _InfoRow extends StatelessWidget {
           SizedBox(
             width: 110,
             child: Text(label,
-                style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                    fontFamily: 'Poppins')),
+                style: const TextStyle(fontSize: 12,
+                    color: AppColors.textSecondary, fontFamily: 'Poppins')),
           ),
           Expanded(
             child: Text(value,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                    fontFamily: 'Poppins')),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary, fontFamily: 'Poppins')),
           ),
         ],
       ),

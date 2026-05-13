@@ -1,4 +1,3 @@
-
 // ─────────────────────────────────────────────────────────────
 //  DASHBOARD SCREEN — Real API Data
 //  Replaces all hardcoded mock values with live API calls:
@@ -12,7 +11,7 @@ import 'package:agr_market/features/auth/screens/profile_screen.dart';
 import 'package:agr_market/features/dashboard/screens/reports_screen.dart';
 import 'package:agr_market/inventory/inventory_list_screen.dart';
 import 'package:agr_market/ledger/ledger_screen.dart';
-// import 'package:agr_market/purchase/purchase_list_screen.dart';
+import 'package:agr_market/payment/payment_screen.dart';      // ← NEW import
 import 'package:agr_market/purchase/purchase_screen.dart';
 import 'package:agr_market/sales/sale_create_screen.dart';
 import 'package:agr_market/services/auth_service.dart';
@@ -140,7 +139,7 @@ try {
       'page': 1,
       'limit': 100,          // increase limit to capture all week purchases
       'sortOrder': 'desc',
-      'status': 'saved,partial,paid',
+      // 'status': 'saved,partial,paid',
       'startDate': startIso,
       'endDate': endIso,     // optional – but recommended if API supports it
     },
@@ -152,6 +151,7 @@ try {
     allPurchases = pRes.data as List;
   }
   debugPrint('✅ Weekly purchases loaded: ${allPurchases.length}');
+  
 } catch (e) {
   debugPrint('⚠️ Weekly purchases error: $e');
 
@@ -255,7 +255,206 @@ debugPrint('Normalized: $weeklyNorm');
     if (diff.inDays < 1) return '${diff.inHours}h ago';
     return '${diff.inDays}d ago';
   }
+Future<void> _addPayment() async {
+  debugPrint('➡️ _addPayment() called');
 
+  // Show loading dialog
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => const Center(child: CircularProgressIndicator()),
+  );
+
+  List<Map<String, dynamic>> purchases = [];
+  try {
+    final res = await DioClient.instance.dio.get(
+      ApiRoutes.purchases,
+      queryParameters: {
+        'page': 1,
+        'limit': 100,
+        'sortOrder': 'desc',
+        'status': 'saved,partial,paid',
+      },
+    );
+
+    debugPrint('✅ Purchases API response: ${res.statusCode}');
+    debugPrint('📦 Response data type: ${res.data.runtimeType}');
+    debugPrint('🔍 Full response data: ${res.data}');
+
+    List raw = [];
+    if (res.data is List) {
+      raw = res.data;
+    } else if (res.data is Map && res.data['data'] is List) {
+      raw = res.data['data'];
+    } else if (res.data is Map && res.data['purchases'] is List) {
+      raw = res.data['purchases'];
+    }
+    purchases = raw.cast<Map<String, dynamic>>();
+
+    if (mounted) Navigator.pop(context); // close loader
+    debugPrint('📋 Fetched ${purchases.length} purchases');
+  } catch (e, stack) {
+    if (mounted) Navigator.pop(context);
+    debugPrint('❌ ERROR fetching purchases: $e');
+    debugPrint(stack.toString());
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to load purchases. Check connection/authentication.')),
+      );
+    }
+    return;
+  }
+
+  if (purchases.isEmpty) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No purchases available to pay against.')),
+      );
+    }
+    return;
+  }
+
+  // Show bottom sheet to select a purchase
+  final selected = await showModalBottomSheet<Map<String, dynamic>>(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) {
+      String query = '';
+      return StatefulBuilder(
+        builder: (ctx, setStateSheet) {
+          final filtered = query.isEmpty
+              ? purchases
+              : purchases.where((p) {
+                  final farmer = p['farmer'];
+                  final farmerName = farmer is Map
+                      ? (farmer['name']?.toString() ?? '')
+                      : '';
+                  final receiptNum = p['receiptNumber']?.toString() ?? '';
+                  return farmerName.toLowerCase().contains(query.toLowerCase()) ||
+                      receiptNum.toLowerCase().contains(query.toLowerCase());
+                }).toList();
+
+          return Container(
+            height: MediaQuery.of(ctx).size.height * 0.7,
+            padding: const EdgeInsets.only(top: 12),
+            child: Column(
+              children: [
+                // Drag handle
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextField(
+                    autofocus: false,
+                    onChanged: (val) {
+                      query = val;
+                      setStateSheet(() {});
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search farmer or receipt...',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      filled: true,
+                      fillColor: AppColors.surfaceVariant,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (ctx, idx) {
+                      final p = filtered[idx];
+                      final farmer = p['farmer'];
+                      final farmerName = farmer is Map
+                          ? (farmer['name']?.toString() ?? 'Unknown')
+                          : 'Unknown';
+                      final farmerId = farmer is Map
+                          ? (farmer['_id']?.toString() ?? farmer['id']?.toString() ?? '')
+                          : '';
+                      final receiptNum = p['receiptNumber']?.toString() ?? '';
+                      final finalPayable = (p['finalPayable'] as num?)?.toDouble() ?? 0;
+                      final amountPaid = (p['amountPaid'] as num?)?.toDouble() ?? 0;
+                      final amountDue = (p['amountDue'] as num?)?.toDouble() ?? 0;
+                      final initials = farmerName.isNotEmpty
+                          ? farmerName.trim().split(' ').map((s) => s[0]).take(2).join().toUpperCase()
+                          : 'F';
+
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: AppColors.primary,
+                          child: Text(initials,
+                              style: const TextStyle(color: Colors.white)),
+                        ),
+                        title: Text(farmerName,
+                            style: const TextStyle(fontFamily: 'Poppins')),
+                        subtitle: Text(
+                          '$receiptNum  •  Due: ₹${amountDue.toStringAsFixed(2)}',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                        onTap: () => Navigator.pop(ctx, p),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+
+  if (selected != null && mounted) {
+    final farmer = selected['farmer'];
+    final farmerName = farmer is Map ? (farmer['name']?.toString() ?? 'Unknown') : 'Unknown';
+    final farmerId = farmer is Map ? (farmer['_id']?.toString() ?? farmer['id']?.toString() ?? '') : '';
+    final purchaseId = selected['_id']?.toString() ?? selected['id']?.toString() ?? '';
+    final finalPayable = (selected['finalPayable'] as num?)?.toDouble() ?? 0;
+    final amountPaid = (selected['amountPaid'] as num?)?.toDouble() ?? 0;
+    final amountDue = (selected['amountDue'] as num?)?.toDouble() ?? 0;
+    final receiptNumber = selected['receiptNumber']?.toString() ?? '';
+
+    if (purchaseId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid purchase selected.')),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PaymentScreen(
+          purchaseId: purchaseId,
+          farmerId: farmerId,
+          farmerName: farmerName,
+          finalPayable: finalPayable,
+          amountPaid: amountPaid,
+          amountDue: amountDue,
+          receiptNumber: receiptNumber,
+        ),
+      ),
+    ).then((_) {
+      // Refresh dashboard after returning
+      _loadDashboard();
+    });
+  }
+}
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -466,7 +665,7 @@ debugPrint('Normalized: $weeklyNorm');
                                 color: Colors.white.withOpacity(0.25),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Text('Market ERP v1.0',
+                              child: const Text('Market ERP ',
                                   style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 12,
@@ -541,12 +740,11 @@ _KpiCard(
                 const SizedBox(height: 20),
 
                 
-             // ── Quick Actions (5 buttons including Reports) ───────
-// ── Quick Actions (including Sales) ───────
+             // ── Quick Actions (including Add Payment) ───────
 const Text('Quick Actions', style: AppTextStyles.headingMedium),
 const SizedBox(height: 12),
 
-// First row - 3 buttons
+// First row - 3 buttons: New Purchase, Add Payment, New Sale
 Row(
   children: [
     Expanded(
@@ -566,16 +764,10 @@ Row(
     const SizedBox(width: 10),
     Expanded(
       child: _QuickAction(
-        icon: Icons.person_add_rounded,
-        label: 'Add Farmer',
-        color: AppColors.secondary,
-        onTap: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const FarmerRegistrationScreen()),
-          );
-          if (result == true) _loadDashboard();
-        },
+        icon: Icons.payments_rounded,           // Payment icon
+        label: 'Add Payment',
+        color: const Color(0xFFFF9800),         // Orange color for distinction
+        onTap: _addPayment,                     // ← NEW method
       ),
     ),
     const SizedBox(width: 10),
@@ -583,14 +775,13 @@ Row(
       child: _QuickAction(
         icon: Icons.storefront_rounded,
         label: 'New Sale',
-        color: const Color(0xFF00BCD4), // Teal color for sales
+        color: const Color(0xFF00BCD4),
         onTap: () async {
           final created = await Navigator.push<bool>(
             context,
             MaterialPageRoute(builder: (_) => const SaleCreateScreen()),
           );
           if (created == true) {
-            // Refresh dashboard if needed (or show success)
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Sale created successfully!'),
@@ -607,7 +798,7 @@ Row(
 
 const SizedBox(height: 10),
 
-// Second row - 3 buttons (optional, or keep as 2)
+// Second row - 3 buttons (unchanged: Inventory, Ledger, Reports)
 Row(
   children: [
     Expanded(
@@ -626,7 +817,7 @@ Row(
     const SizedBox(width: 10),
     Expanded(
       child: _QuickAction(
-        icon: Icons.payments_rounded,
+        icon: Icons.receipt_long_rounded,
         label: 'Ledger',
         color: AppColors.info,
         onTap: () {
@@ -755,73 +946,6 @@ Row(
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // ── Recent Purchases ─────────────────────────
-                // Row(
-                //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                //   children: [
-                //     const Text('Recent Purchases',
-                //         style: AppTextStyles.headingMedium),
-                //     TextButton(
-                //       onPressed: () {
-                //         // Navigate to purchase list tab
-                //       },
-                //       child: const Text('View All',
-                //           style: TextStyle(
-                //               color: AppColors.primary,
-                //               fontSize: 13,
-                //               fontFamily: 'Poppins')),
-                //     ),
-                //   ],
-                // ),
-                // const SizedBox(height: 8),
-                // if (_loading)
-                //   ...List.generate(3, (_) => _buildPurchaseShimmer())
-                // else if (_data.recentPurchases.isEmpty)
-                //   Container(
-                //     padding: const EdgeInsets.all(24),
-                //     child: Column(
-                //       children: [
-                //         const Icon(Icons.receipt_long_outlined,
-                //             size: 40, color: AppColors.textHint),
-                //         const SizedBox(height: 8),
-                //         const Text('No purchases yet today',
-                //             style: TextStyle(
-                //                 color: AppColors.textSecondary,
-                //                 fontFamily: 'Poppins',
-                //                 fontSize: 13)),
-                //         const SizedBox(height: 12),
-                //         ElevatedButton.icon(
-                //           onPressed: () async {
-                //             final result = await Navigator.push(
-                //                 context,
-                //                 MaterialPageRoute(
-                //                     builder: (_) =>
-                //                         const NewPurchaseScreen()));
-                //             if (result == true) _loadDashboard();
-                //           },
-                //           icon: const Icon(Icons.add, size: 16),
-                //           label: const Text('New Purchase',
-                //               style: TextStyle(fontFamily: 'Inter')),
-                //           style: ElevatedButton.styleFrom(
-                //             backgroundColor: AppColors.primary,
-                //             foregroundColor: Colors.white,
-                //             elevation: 0,
-                //             shape: RoundedRectangleBorder(
-                //                 borderRadius: BorderRadius.circular(10)),
-                //           ),
-                //         ),
-                //       ],
-                //     ),
-                //   )
-                // else
-                //   ..._data.recentPurchases.map((p) => _RecentPurchaseTile(
-                //         productName: p['product'] as String,
-                //         farmerName: p['farmer'] as String,
-                //         amount: _formatAmount(p['amount'] as double),
-                //         timeAgo: _timeAgo(p['date'] as String),
-                //       )),
-                // const SizedBox(height: 20),
 
                 // ── Error state ──────────────────────────────
                 if (_hasError)
@@ -1117,65 +1241,5 @@ class _Bar extends StatelessWidget {
       );
 }
 
-// ── Recent Purchase Tile ──────────────────────────────────────
-
-class _RecentPurchaseTile extends StatelessWidget {
-  final String productName;
-  final String farmerName;
-  final String amount;
-  final String timeAgo;
-  const _RecentPurchaseTile({
-    required this.productName,
-    required this.farmerName,
-    required this.amount,
-    required this.timeAgo,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppColors.primarySurface,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.agriculture_rounded,
-                color: AppColors.primary, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(productName, style: AppTextStyles.labelLarge),
-                const SizedBox(height: 2),
-                Text('Farmer: $farmerName', style: AppTextStyles.bodySmall),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(amount,
-                  style: AppTextStyles.labelLarge
-                      .copyWith(color: AppColors.primaryDark)),
-              const SizedBox(height: 2),
-              Text(timeAgo, style: AppTextStyles.bodySmall),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
+// ── Recent Purchase Tile (not currently used in UI) ──────────
+// … omitted for brevity

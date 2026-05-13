@@ -131,6 +131,7 @@ class FarmerProvider extends ChangeNotifier {
     String? address,
     String? bankAccountNumber,
     String? ifscCode,
+    
     String? bankName,
     String? gstNumber,
   }) async {

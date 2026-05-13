@@ -395,10 +395,13 @@ class PaymentRequest {
   final String? referenceNumber;
   final DateTime paymentDate;
   final String? notes;
-  // FIX: only set for cheque mode
   final ChequeStatus? chequeStatus;
- 
-  PaymentRequest({
+  // New fields for cheque
+  final String? chequeNumber;
+  final DateTime? chequeDate;
+  final String? bankName;
+
+  const PaymentRequest({
     required this.purchaseId,
     required this.farmerId,
     required this.amount,
@@ -407,20 +410,40 @@ class PaymentRequest {
     required this.paymentDate,
     this.notes,
     this.chequeStatus,
+    this.chequeNumber,
+    this.chequeDate,
+    this.bankName,
   });
- 
-  Map<String, dynamic> toJson() => {
-    'purchaseId':  purchaseId,
-    'farmerId':    farmerId,
-    'amount':      amount,
-    'paymentMode': paymentMode.value,
-    if (referenceNumber != null && referenceNumber!.isNotEmpty)
-      'referenceNumber': referenceNumber,
-    'paymentDate': paymentDate.toIso8601String(),
-    if (notes != null && notes!.isNotEmpty) 'notes': notes,
-    // FIX: send correct chequeStatus value
-    if (paymentMode == PaymentMode.cheque)
-      'chequeStatus': (chequeStatus ?? ChequeStatus.pendingClearance).value,
-  };
+
+  Map<String, dynamic> toJson() {
+    final map = <String, dynamic>{
+      'purchaseId': purchaseId,
+      'farmerId': farmerId,
+      'amount': amount,
+      'paymentMode': paymentMode.value,
+      'paymentDate': paymentDate.toIso8601String().split('T').first,
+    };
+    if (referenceNumber != null && referenceNumber!.isNotEmpty) {
+      map['referenceNumber'] = referenceNumber;
+    }
+    if (notes != null && notes!.isNotEmpty) {
+      map['notes'] = notes;
+    }
+    if (paymentMode == PaymentMode.cheque) {
+      if (chequeNumber != null && chequeNumber!.isNotEmpty) {
+        map['chequeNumber'] = chequeNumber;
+      }
+      if (chequeDate != null) {
+        map['chequeDate'] = chequeDate!.toIso8601String().split('T').first;
+      }
+      if (bankName != null && bankName!.isNotEmpty) {
+        map['bankName'] = bankName;
+      }
+      // Send chequeStatus only if the API expects it (optional)
+      if (chequeStatus != null) {
+        map['chequeStatus'] = chequeStatus!.value;
+      }
+    }
+    return map;
+  }
 }
- 
