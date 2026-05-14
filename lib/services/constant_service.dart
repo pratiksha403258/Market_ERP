@@ -1,9 +1,9 @@
 class AppConstants {
   AppConstants._();
  
-  static const String baseUrl = 'http://192.168.1.15:5001/api';
+   static const String baseUrl = 'http://192.168.1.15:5001/api';
  //static const String baseUrl = 'http://192.168.1.8:5001/api';
-
+   // static const baseUrl = "https://codiantsolutions.com/api/agri_tred/api";
 
   static const String keyAccessToken  = 'access_token';
   static const String keyRefreshToken = 'refresh_token';
@@ -29,6 +29,7 @@ class ApiRoutes {
   static const String refresh = '/auth/refresh';
   static const String me      = '/auth/me';
  
+   static const String register = '/auth/register';
   // Farmers
   static const String farmers               = '/farmers';
   static String farmerById(String id)       => '/farmers/$id';

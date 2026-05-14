@@ -291,203 +291,305 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
     setState(() => _exporting = true);
 
     try {
-      final langProv =
-          Provider.of<LanguageProvider>(context, listen: false);
+      final langProv = Provider.of<LanguageProvider>(context, listen: false);
       final isMarathi = langProv.locale.languageCode == 'mr';
 
-      // ── Load correct fonts ─────────────────────────────────
       final pw.Font regularFont;
       final pw.Font boldFont;
 
       if (isMarathi) {
-        regularFont =
-            await PdfGoogleFonts.notoSansDevanagariRegular();
+        regularFont = await PdfGoogleFonts.notoSansDevanagariRegular();
         boldFont = await PdfGoogleFonts.notoSansDevanagariBold();
       } else {
         regularFont = await PdfGoogleFonts.notoSansRegular();
         boldFont = await PdfGoogleFonts.notoSansBold();
       }
 
-      // ── Shorthand text style builder ───────────────────────
       pw.TextStyle s({
-        double sz = 9,
+        num sz = 9,
         bool bold = false,
         PdfColor color = PdfColors.black,
-      }) =>
-          pw.TextStyle(
-            font: bold ? boldFont : regularFont,
-            fontSize: sz,
-            color: color,
-          );
+      }) {
+        return pw.TextStyle(
+          font: bold ? boldFont : regularFont,
+          fontSize: sz.toDouble(),
+          color: color,
+        );
+      }
 
       final pdf = pw.Document();
 
-      // ── Farmer data ────────────────────────────────────────
-      final farmerName =
-          _farmerInfo?['name']?.toString() ?? widget.farmerName;
-      final farmerMobile =
-          _farmerInfo?['mobile']?.toString() ?? widget.farmerMobile;
-      final farmerAddress =
-          _farmerInfo?['address']?.toString() ?? '';
-      final totalCredit =
-          (_summary?['totalCredit'] as num?)?.toDouble() ?? 0;
-      final closingBalance =
-          (_summary?['closingBalance'] as num?)?.toDouble() ?? 0;
+      final farmerName = _farmerInfo?['name']?.toString() ?? widget.farmerName;
+      final farmerMobile = _farmerInfo?['mobile']?.toString() ?? widget.farmerMobile;
+
+      final totalDebit = (_summary?['totalDebit'] as num?)?.toDouble() ?? 0.0;
+      final totalCredit = (_summary?['totalCredit'] as num?)?.toDouble() ?? 0.0;
+      final balance = (_summary?['closingBalance'] as num?)?.toDouble() ?? 0.0;
 
       final now = DateTime.now();
-      final ledgerDate = DateFormat('dd/MM/yyyy').format(now);
-
-      // ── All labels from LanguageProvider ───────────────────
-      String periodLabel = langProv.t('ledger_all_tx');
-      if (_startDate != null && _endDate != null) {
-        periodLabel =
-            '${DateFormat('dd/MM/yyyy').format(_startDate!)} - ${DateFormat('dd/MM/yyyy').format(_endDate!)}';
-      }
-
-      // ── Colors ─────────────────────────────────────────────
-      const black = PdfColors.black;
-      const lightGrey = PdfColor.fromInt(0xFFF2F2F2);
-      const borderGrey = PdfColor.fromInt(0xFFBBBBBB);
-      const midGrey = PdfColor.fromInt(0xFF555555);
+      final dateStr = DateFormat('dd MMM yyyy').format(now);
 
       pdf.addPage(
-        pw.MultiPage(
+        pw.Page(
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.fromLTRB(36, 36, 36, 48),
-
-          header: (ctx) => pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          margin: const pw.EdgeInsets.all(16),
+          build: (context) {
+            return pw.Container(
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.red, width: 1.5),
+              ),
+              padding: const pw.EdgeInsets.all(10),
+              child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  /// HEADER
+                  pw.Center(
+                    child: pw.Text(
+                      '|| Under Kalwan Jurisdiction ||',
+                      style: s(sz: 9, bold: true, color: PdfColors.red),
+                    ),
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Center(
+                    child: pw.Text(
+                      langProv.t('company_name'),
+                      style: s(sz: 18, bold: true, color: PdfColors.red),
+                    ),
+                  ),
+                  pw.Center(
+                    child: pw.Text(
+                      langProv.t('company_address'),
+                      style: s(sz: 10),
+                    ),
+                  ),
+                  pw.Center(
+                    child: pw.Text(
+                      langProv.t('ledger_title').toUpperCase(),
+                      style: s(sz: 10, bold: true),
+                    ),
+                  ),
+                  pw.Divider(color: PdfColors.red),
+
+                  /// PROP
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      pw.Text(langProv.t('ledger_company'),
-                          style: s(sz: 10, bold: true)),
-                      pw.SizedBox(height: 2),
-                      pw.Text(langProv.t('ledger_subtitle'),
-                          style: s(sz: 8, color: midGrey)),
+                      pw.Text(
+                        'Prop. Rakesh Hire M: 9021699991',
+                        style: s(sz: 8, color: PdfColors.red),
+                      ),
+                      pw.Text(
+                        'Prop. Swajit Hire M: 9565459991',
+                        style: s(sz: 8, color: PdfColors.red),
+                      ),
                     ],
                   ),
-                  pw.Text(
-                    langProv.t('ledger_company').toUpperCase(),
-                    style: s(sz: 15, bold: true),
+                  pw.Divider(color: PdfColors.red),
+
+                  /// FARMER INFO - USING PROVIDER TRANSLATIONS
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('${langProv.t('ledger_farmer_name')} $farmerName', style: s(sz: 10)),
+                      pw.Text('${langProv.t('ledger_ledger_date')} $dateStr', style: s(sz: 10)),
+                    ],
+                  ),
+                  pw.Divider(color: PdfColors.red),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('${langProv.t('mobile')}: $farmerMobile', style: s(sz: 10)),
+                      pw.Text('${langProv.t('village')}: -', style: s(sz: 10)),
+                    ],
+                  ),
+                  pw.Divider(color: PdfColors.red),
+                  pw.SizedBox(height: 8),
+
+                  /// SUMMARY - USING PROVIDER TRANSLATIONS
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      _summaryBox(langProv.t('total_paid'), totalDebit, PdfColors.green, s),
+                      _summaryBox(langProv.t('total_purchased'), totalCredit, PdfColors.red, s),
+                      _summaryBox(langProv.t('balance'), balance, PdfColors.green, s),
+                    ],
+                  ),
+                  pw.SizedBox(height: 10),
+
+                  /// TABLE - USING PROVIDER TRANSLATIONS
+                  pw.Table(
+                    border: pw.TableBorder.all(color: PdfColors.red),
+                    columnWidths: {
+                      0: const pw.FixedColumnWidth(20),
+                      1: const pw.FixedColumnWidth(55),
+                      2: const pw.FlexColumnWidth(),
+                      3: const pw.FixedColumnWidth(55),
+                      4: const pw.FixedColumnWidth(55),
+                      5: const pw.FixedColumnWidth(65),
+                    },
+                    children: [
+                      pw.TableRow(
+                        decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+                        children: [
+                          _cell('Sr', s, true),
+                          _cell(langProv.t('ledger_col_date'), s, true),
+                          _cell(langProv.t('ledger_col_desc'), s, true),
+                          _cell(langProv.t('ledger_col_debit'), s, true),
+                          _cell(langProv.t('ledger_col_credit'), s, true),
+                          _cell(langProv.t('ledger_col_balance'), s, true),
+                        ],
+                      ),
+                      ..._transactions.asMap().entries.map((e) {
+                        final i = e.key + 1;
+                        final tx = e.value;
+                        final debit = (tx['debit'] as num?)?.toDouble() ?? 0.0;
+                        final credit = (tx['credit'] as num?)?.toDouble() ?? 0.0;
+                        final runningBalance = (tx['runningBalance'] as num?)?.toDouble() ?? 0.0;
+
+                        // Clean description
+                        String cleanDescription = (tx['description']?.toString() ?? '-')
+                            .replaceAll('₹', 'Rs')
+                            .replaceAll('\u20B9', 'Rs');
+
+                        return pw.TableRow(
+                          children: [
+                            _cell('$i', s, false),
+                            _cell(_fmtDate(tx['entryDate'] ?? ''), s, false),
+                            _cell(cleanDescription, s, false),
+                            _cell(debit > 0 ? 'Rs ${_fmt(debit)}' : '-', s, false),
+                            _cell(credit > 0 ? 'Rs ${_fmt(credit)}' : '-', s, false),
+                            _cell('Rs ${_fmt(runningBalance)}', s, false),
+                          ],
+                        );
+                      }).toList(),
+                    ],
+                  ),
+                  pw.SizedBox(height: 10),
+
+                  /// BALANCE WORDS (BOXED)
+                  pw.Container(
+                    width: double.infinity,
+                    padding: const pw.EdgeInsets.all(6),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: PdfColors.red),
+                    ),
+                    child: pw.Text(
+                      'Balance Amount in Words: ${_numberToWords(balance.toInt())} Rupees Only',
+                      style: s(sz: 9),
+                    ),
+                  ),
+                  pw.SizedBox(height: 6),
+
+                  /// FINAL ROW - USING PROVIDER TRANSLATIONS
+                  pw.Container(
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: PdfColors.red),
+                    ),
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                    child: pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text(langProv.t('thank_you'), style: s(sz: 10, bold: true)),
+                        pw.Text(
+                          '${langProv.t('balance')}: Rs ${_fmt(balance)}',
+                          style: s(sz: 11, bold: true),
+                        ),
+                      ],
+                    ),
+                  ),
+                  pw.SizedBox(height: 20),
+
+                  /// SIGNATURE - USING PROVIDER TRANSLATIONS
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Column(
+                        children: [
+                          pw.Container(width: 120, height: 1, color: PdfColors.black),
+                          pw.SizedBox(height: 4),
+                          pw.Text(langProv.t('buyers_signature'), style: s(sz: 9)),
+                        ],
+                      ),
+                      pw.Column(
+                        children: [
+                          pw.Container(width:160, height: 1, color: PdfColors.black),
+                          pw.SizedBox(height: 4),
+                          pw.Text(
+                            langProv.t('for_company'),
+                            style: s(sz: 9, bold: true),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ],
               ),
-              pw.SizedBox(height: 8),
-              pw.Divider(color: black, thickness: 1),
-              pw.SizedBox(height: 5),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Row(children: [
-                    pw.Text('${langProv.t('ledger_farmer_name')} ',
-                        style: s(sz: 9, bold: true)),
-                    pw.Text(farmerName, style: s(sz: 9)),
-                  ]),
-                  pw.Row(children: [
-                    pw.Text('${langProv.t('ledger_ledger_date')} ',
-                        style: s(sz: 9, bold: true)),
-                    pw.Text(ledgerDate, style: s(sz: 9)),
-                  ]),
-                ],
-              ),
-              if (farmerMobile.isNotEmpty) ...[
-                pw.SizedBox(height: 2),
-                pw.Text('${langProv.t('ledger_mobile')} $farmerMobile',
-                    style: s(sz: 8, color: midGrey)),
-              ],
-              if (farmerAddress.isNotEmpty) ...[
-                pw.SizedBox(height: 1),
-                pw.Text(farmerAddress,
-                    style: s(sz: 8, color: midGrey)),
-              ],
-              pw.SizedBox(height: 2),
-              pw.Text('${langProv.t('ledger_period')} $periodLabel',
-                  style: s(sz: 8, color: midGrey)),
-              pw.SizedBox(height: 8),
-            ],
-          ),
-
-          footer: (ctx) => pw.Column(children: [
-            pw.Divider(color: borderGrey, thickness: 0.5),
-            pw.SizedBox(height: 3),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text(langProv.t('ledger_company'),
-                    style: s(sz: 7, color: midGrey)),
-                pw.Text(
-                    '${langProv.t('ledger_page')} ${ctx.pageNumber} ${langProv.t('ledger_of')} ${ctx.pagesCount}',
-                    style: s(sz: 7, color: midGrey)),
-              ],
-            ),
-          ]),
-
-          build: (ctx) => [
-            pw.Text(langProv.t('ledger_trans_history'),
-                style: s(sz: 10, bold: true)),
-            pw.SizedBox(height: 5),
-
-            _pdfTable(
-              transactions: _transactions,
-              langProv: langProv,
-              borderGrey: borderGrey,
-              lightGrey: lightGrey,
-              midGrey: midGrey,
-              s: s,
-            ),
-
-            pw.SizedBox(height: 10),
-
-            _pdfSummary(
-              totalCredit: totalCredit,
-              closingBalance: closingBalance,
-              langProv: langProv,
-              borderGrey: borderGrey,
-              lightGrey: lightGrey,
-              s: s,
-            ),
-
-            pw.SizedBox(height: 28),
-
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.end,
-              children: [
-                pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.end,
-                  children: [
-                    pw.Text(
-                        '${langProv.t('ledger_for_label')} ${langProv.t('ledger_company')}',
-                        style: s(sz: 8)),
-                    pw.SizedBox(height: 28),
-                    pw.Text(langProv.t('ledger_authorised'),
-                        style: s(sz: 8)),
-                  ],
-                ),
-              ],
-            ),
-          ],
+            );
+          },
         ),
       );
 
       final bytes = await pdf.save();
       await Printing.layoutPdf(
         onLayout: (_) async => bytes,
-        name:
-            'Ledger_${farmerName.replaceAll(' ', '_')}_${DateFormat('yyyyMMdd').format(now)}.pdf',
+        name: 'Farmer_Ledger.pdf',
       );
     } catch (e) {
-      debugPrint('PDF error: $e');
-      _snack('Failed to generate PDF: $e', isError: true);
+      _snack('PDF Error: $e', isError: true);
     } finally {
       setState(() => _exporting = false);
     }
   }
+  String _numberToWords(int number) {
+    if (number == 0) return 'Zero';
+
+    final units = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+    final teens = ['', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    final tens = ['', 'Ten', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+    String convert(int n) {
+      if (n < 10) return units[n];
+      if (n < 20) return teens[n - 10];
+      if (n < 100) return '${tens[n ~/ 10]} ${units[n % 10]}'.trim();
+      if (n < 1000) return '${units[n ~/ 100]} Hundred ${convert(n % 100)}'.trim();
+      if (n < 100000) return '${convert(n ~/ 1000)} Thousand ${convert(n % 1000)}'.trim();
+      if (n < 10000000) return '${convert(n ~/ 100000)} Lakh ${convert(n % 100000)}'.trim();
+      return '${convert(n ~/ 10000000)} Crore ${convert(n % 10000000)}'.trim();
+    }
+
+    return convert(number);
+  }
+  pw.Widget _summaryBox(String title, double value, PdfColor color, Function s) {
+    return pw.Container(
+      width: 140,
+      padding: const pw.EdgeInsets.all(8),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.red),
+        borderRadius: pw.BorderRadius.circular(6),
+      ),
+      child: pw.Column(
+        children: [
+          pw.Text(title, style: s(sz: 9)),
+          pw.SizedBox(height: 4),
+          pw.Text(
+            '₹${_fmt(value)}',
+            style: s(sz: 11, bold: true, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _cell(String text, Function s, bool bold) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(5),
+      child: pw.Text(
+        text,
+        style: s(sz: 8, bold: bold),
+      ),
+    );
+  }
+
 
   // ── PDF table ──────────────────────────────────────────────
   pw.Widget _pdfTable({
@@ -679,6 +781,20 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
       default:
         return null;
     }
+  }
+
+  pw.Widget _pdfCell(String text, Function s, {bool isHeader = false}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(6),
+      child: pw.Text(
+        text,
+        style: s(
+          sz: 8,
+          bold: isHeader,
+          color: isHeader ? PdfColors.white : PdfColors.black,
+        ),
+      ),
+    );
   }
 
   void _snack(String msg, {bool isError = false}) {

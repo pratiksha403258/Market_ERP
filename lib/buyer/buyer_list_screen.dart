@@ -56,71 +56,77 @@ class _BuyerListScreenState extends State<BuyerListScreen> {
     ]);
   }
 
-  Future<void> _loadBuyers({bool reset = false}) async {
+Future<void> _loadBuyers({bool reset = false}) async {
+  if (!reset && _loading) return;
+  if (!reset && _currentPage >= _totalPages) return; // ← also prevent over-fetching
+
+  setState(() {
+    _loading = true;
     if (reset) {
+      _currentPage = 1;
+      _buyers = [];
+    }
+  });
+
+  try {
+    final result = await _buyerService.getBuyers(
+      page: _currentPage,
+      limit: 20,
+      search: _searchQuery.isEmpty ? null : _searchQuery,
+      sortBy: _sortBy,
+      sortOrder: _sortOrder,
+      isActive: _isActiveFilter,
+    );
+
+    if (!mounted) return;
+
+    if (result.isSuccess && result.data != null) {
       setState(() {
-        _currentPage = 1;
-        _buyers = [];
-        _loading = true;
-      });
-    } else if (_loading) return;
-
-    setState(() => _loading = true);
-
-    try {
-      final result = await _buyerService.getBuyers(
-        page: _currentPage,
-        limit: 20,
-        search: _searchQuery.isEmpty ? null : _searchQuery,
-        sortBy: _sortBy,
-        sortOrder: _sortOrder,
-        isActive: _isActiveFilter,
-      );
-
-      if (result.isSuccess && result.data != null) {
-        setState(() {
-          if (reset) {
-            _buyers = result.data!.buyers;
-          } else {
-            _buyers.addAll(result.data!.buyers);
-          }
-          _totalPages = result.data!.pages;
-          _loading = false;
-        });
-      } else {
-        setState(() => _loading = false);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result.message ?? 'Failed to load buyers')),
-          );
+        if (reset) {
+          _buyers = result.data!.buyers;
+        } else {
+          _buyers.addAll(result.data!.buyers);
         }
-      }
-    } catch (e) {
+        _totalPages = result.data!.pages;
+        _currentPage++; // ← increment here, not missing from your original
+        _loading = false;
+      });
+    } else {
       setState(() => _loading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to load buyers')),
+          SnackBar(content: Text(result.message ?? 'Failed to load buyers')),
         );
       }
     }
-  }
-
-  Future<void> _loadSummary() async {
-    setState(() => _loadingSummary = true);
-    try {
-      final result = await _buyerService.getBuyerSummary();
-      if (result.isSuccess && result.data != null) {
-        setState(() {
-          _summary = result.data;
-          _loadingSummary = false;
-        });
-      } else {
-        setState(() => _loadingSummary = false);
-      }
-    } catch (e) {
-      setState(() => _loadingSummary = false);
+  } catch (e) {
+    if (mounted) setState(() => _loading = false); // ← was missing mounted check
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to load buyers')),
+      );
     }
   }
+}
+
+Future<void> _loadSummary() async {
+  if (!mounted) return; // ← add this
+  setState(() => _loadingSummary = true);
+  try {
+    final result = await _buyerService.getBuyerSummary();
+    if (!mounted) return; // ← add this
+    if (result.isSuccess && result.data != null) {
+      setState(() {
+        _summary = result.data;
+        _loadingSummary = false;
+      });
+    } else {
+      setState(() => _loadingSummary = false);
+    }
+  } catch (e) {
+    if (mounted) setState(() => _loadingSummary = false); // ← was missing mounted check
+  }
+}
 
   void _onSearchChanged(String value) {
     _searchQuery = value;

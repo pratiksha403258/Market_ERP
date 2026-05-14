@@ -45,8 +45,22 @@ class _AppInterceptor extends Interceptor {
     if (token != null) {
       options.headers['Authorization'] = 'Bearer $token';
     }
+
+      print('>>> REQUEST: ${options.method} ${options.baseUrl}${options.path}');
+  print('>>> BODY: ${options.data}');
     handler.next(options);
   }
+
+@override
+void onResponse(Response response, ResponseInterceptorHandler handler) {
+  print('>>> RESPONSE ${response.statusCode}: ${response.data}');
+  handler.next(response);
+}
+
+@override
+Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+  print('>>> ERROR ${err.response?.statusCode}: ${err.response?.data}');
+
 
   @override
   Future<void> onError(
@@ -76,4 +90,5 @@ class _AppInterceptor extends Interceptor {
     }
     handler.next(err);
   }
+}
 }

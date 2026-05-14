@@ -6,6 +6,7 @@ import 'core/constants/colors.dart';
 import 'core/splash/splash_screen.dart';
 import 'features/auth/screens/login_screen.dart';
 // import 'features/auth/screens/register_screen.dart';
+import 'features/auth/screens/registration_screen.dart';
 import 'features/navigation/main_navigation_screen.dart';
 import 'providers/auth_provider.dart';
 import 'providers/language_provider.dart';
@@ -32,16 +33,17 @@ class MarketErpApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      
       title: 'Market ERP',
       debugShowCheckedModeBanner: false,
-   theme: ThemeData(fontFamily: 'NotoSans'),
+      theme: _buildTheme(),
       initialRoute: '/splash',
       routes: {
         '/splash':    (_) => const SplashScreen(),
         '/login':     (_) => const LoginScreen(),
         '/language':  (_) => const LanguageSelectionScreen(),
         '/home':      (_) => const MainNavigationScreen(),
+        '/register':  (_) => const RegisterScreen(),
+
       },
     );
   }
