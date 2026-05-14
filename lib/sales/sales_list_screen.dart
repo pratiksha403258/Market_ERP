@@ -7,121 +7,7 @@ import '../../../core/constants/colors.dart';
 import '../../../services/dio_client.dart';
 import '../../../services/constant_service.dart';
 import '../../../providers/language_provider.dart';
-
-
-// Sales Model
-class SaleModel {
-  final String id;
-  final String invoiceNumber;
-  final String buyerName;
-  final String buyerMobile;
-  final String buyerGst;
-  final DateTime saleDate;
-  final List<SaleLine> lines;
-  final double subTotal;
-  final double gstPercent;
-  final double gstAmount;
-  final double grandTotal;
-  final String paymentMode;
-  final String referenceNumber;
-  final String notes;
-  final CreatedBy createdBy;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-
-  SaleModel({
-    required this.id,
-    required this.invoiceNumber,
-    required this.buyerName,
-    required this.buyerMobile,
-    required this.buyerGst,
-    required this.saleDate,
-    required this.lines,
-    required this.subTotal,
-    required this.gstPercent,
-    required this.gstAmount,
-    required this.grandTotal,
-    required this.paymentMode,
-    required this.referenceNumber,
-    required this.notes,
-    required this.createdBy,
-    required this.createdAt,
-    required this.updatedAt,
-  });
-
-  factory SaleModel.fromJson(Map<String, dynamic> json) {
-    return SaleModel(
-      id: json['_id']?.toString() ?? '',
-      invoiceNumber: json['invoiceNumber']?.toString() ?? '',
-      buyerName: json['buyerName']?.toString() ?? '',
-      buyerMobile: json['buyerMobile']?.toString() ?? '',
-      buyerGst: json['buyerGst']?.toString() ?? '',
-      saleDate: DateTime.tryParse(json['saleDate']?.toString() ?? '') ?? DateTime.now(),
-      lines: (json['lines'] as List? ?? [])
-          .map((e) => SaleLine.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      subTotal: (json['subTotal'] as num?)?.toDouble() ?? 0,
-      gstPercent: (json['gstPercent'] as num?)?.toDouble() ?? 0,
-      gstAmount: (json['gstAmount'] as num?)?.toDouble() ?? 0,
-      grandTotal: (json['grandTotal'] as num?)?.toDouble() ?? 0,
-      paymentMode: json['paymentMode']?.toString() ?? '',
-      referenceNumber: json['referenceNumber']?.toString() ?? '',
-      notes: json['notes']?.toString() ?? '',
-      createdBy: CreatedBy.fromJson(json['createdBy'] as Map<String, dynamic>? ?? {}),
-      createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime.now(),
-      updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '') ?? DateTime.now(),
-    );
-  }
-}
-
-class SaleLine {
-  final String productName;
-  final String warehouse;
-  final double qty;
-  final String unit;
-  final double sellingPrice;
-  final double lineTotal;
-
-  SaleLine({
-    required this.productName,
-    required this.warehouse,
-    required this.qty,
-    required this.unit,
-    required this.sellingPrice,
-    required this.lineTotal,
-  });
-
-  factory SaleLine.fromJson(Map<String, dynamic> json) {
-    return SaleLine(
-      productName: json['productName']?.toString() ?? '',
-      warehouse: json['warehouse']?.toString() ?? '',
-      qty: (json['qty'] as num?)?.toDouble() ?? 0,
-      unit: json['unit']?.toString() ?? '',
-      sellingPrice: (json['sellingPrice'] as num?)?.toDouble() ?? 0,
-      lineTotal: (json['lineTotal'] as num?)?.toDouble() ?? 0,
-    );
-  }
-}
-
-class CreatedBy {
-  final String id;
-  final String name;
-  final String email;
-
-  CreatedBy({
-    required this.id,
-    required this.name,
-    required this.email,
-  });
-
-  factory CreatedBy.fromJson(Map<String, dynamic> json) {
-    return CreatedBy(
-      id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
-      email: json['email']?.toString() ?? '',
-    );
-  }
-}
+import '../../../models/sale_model.dart';
 
 class SalesListScreen extends StatefulWidget {
   const SalesListScreen({super.key});
@@ -134,13 +20,13 @@ class _SalesListScreenState extends State<SalesListScreen> {
   List<SaleModel> _sales = [];
   bool _loading = true;
   String? _error;
-  
+
   // Pagination
   int _currentPage = 1;
   int _totalPages = 1;
   bool _isLoadingMore = false;
   final ScrollController _scrollCtrl = ScrollController();
-  
+
   // Filters
   DateTime? _startDate;
   DateTime? _endDate;
@@ -162,7 +48,8 @@ class _SalesListScreenState extends State<SalesListScreen> {
   }
 
   void _onScroll() {
-    if (_scrollCtrl.position.pixels >= _scrollCtrl.position.maxScrollExtent - 200 &&
+    if (_scrollCtrl.position.pixels >=
+            _scrollCtrl.position.maxScrollExtent - 200 &&
         !_isLoadingMore &&
         _currentPage < _totalPages) {
       _loadMoreSales();
@@ -184,7 +71,7 @@ class _SalesListScreenState extends State<SalesListScreen> {
         'page': _currentPage,
         'limit': 20,
       };
-      
+
       if (_startDate != null) {
         params['startDate'] = DateFormat('yyyy-MM-dd').format(_startDate!);
       }
@@ -200,17 +87,18 @@ class _SalesListScreenState extends State<SalesListScreen> {
       );
 
       debugPrint('✅ Sales response status: ${response.statusCode}');
-      
+
       final responseData = response.data as Map<String, dynamic>;
-      
+
       if (responseData['success'] != true) {
-        throw Exception('API returned success=false: ${responseData['message']}');
+        throw Exception(
+            'API returned success=false: ${responseData['message']}');
       }
 
-      // Handle the response structure - data is directly an array
       final salesList = responseData['data'] as List? ?? [];
-      final pagination = responseData['pagination'] as Map<String, dynamic>? ?? {};
-      
+      final pagination =
+          responseData['pagination'] as Map<String, dynamic>? ?? {};
+
       final newSales = salesList
           .map((e) => SaleModel.fromJson(e as Map<String, dynamic>))
           .toList();
@@ -224,8 +112,9 @@ class _SalesListScreenState extends State<SalesListScreen> {
         _totalPages = (pagination['pages'] as num?)?.toInt() ?? 1;
         _loading = false;
       });
-      
-      debugPrint('📊 Loaded ${newSales.length} sales, total pages: $_totalPages');
+
+      debugPrint(
+          '📊 Loaded ${newSales.length} sales, total pages: $_totalPages');
     } catch (e) {
       debugPrint('❌ Error loading sales: $e');
       setState(() {
@@ -237,17 +126,12 @@ class _SalesListScreenState extends State<SalesListScreen> {
 
   Future<void> _loadMoreSales() async {
     if (_isLoadingMore || _currentPage >= _totalPages) return;
-    
     setState(() {
       _isLoadingMore = true;
       _currentPage++;
     });
-    
     await _loadSales(reset: false);
-    
-    setState(() {
-      _isLoadingMore = false;
-    });
+    setState(() => _isLoadingMore = false);
   }
 
   Future<void> _pickDateRange() async {
@@ -265,7 +149,7 @@ class _SalesListScreenState extends State<SalesListScreen> {
         child: child!,
       ),
     );
-    
+
     if (result != null) {
       setState(() {
         _startDate = result.start;
@@ -283,13 +167,21 @@ class _SalesListScreenState extends State<SalesListScreen> {
     _loadSales(reset: true);
   }
 
-  String _formatDate(DateTime date) {
-    return DateFormat('dd/MM/yyyy').format(date);
-  }
+  String _formatDate(DateTime date) => DateFormat('dd/MM/yyyy').format(date);
 
   String _formatCurrency(double amount) {
     final formatter = NumberFormat('#,##,##0', 'en_IN');
     return '₹${formatter.format(amount)}';
+  }
+
+  List<SaleModel> get _filteredSales {
+    if (_searchQuery.isEmpty) return _sales;
+    final q = _searchQuery.toLowerCase();
+    return _sales.where((s) {
+      return s.invoiceNumber.toLowerCase().contains(q) ||
+          s.buyerName.toLowerCase().contains(q) ||
+          (s.buyerMobile ?? '').contains(q);
+    }).toList();
   }
 
   @override
@@ -299,13 +191,9 @@ class _SalesListScreenState extends State<SalesListScreen> {
         return Scaffold(
           backgroundColor: AppColors.background,
           appBar: AppBar(
-            title: const Text(
-              'Sales Invoices',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            title: const Text('Sales Invoices',
+                style: TextStyle(
+                    fontFamily: 'Poppins', fontWeight: FontWeight.w600)),
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
             elevation: 0,
@@ -325,18 +213,16 @@ class _SalesListScreenState extends State<SalesListScreen> {
           ),
           body: Column(
             children: [
-              // Search Bar
+              // Search bar
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: TextField(
                   controller: _searchCtrl,
-                  onChanged: (value) {
-                    setState(() {
-                      _searchQuery = value.toLowerCase();
-                    });
-                  },
+                  onChanged: (v) =>
+                      setState(() => _searchQuery = v.toLowerCase()),
                   decoration: InputDecoration(
-                    hintText: 'Search by invoice number, buyer name, or mobile...',
+                    hintText:
+                        'Search by invoice, buyer name or mobile...',
                     prefixIcon: const Icon(Icons.search, size: 20),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
@@ -357,58 +243,71 @@ class _SalesListScreenState extends State<SalesListScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                      borderSide: const BorderSide(
+                          color: AppColors.primary, width: 1.5),
                     ),
                     filled: true,
                     fillColor: AppColors.surface,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
                   ),
                 ),
               ),
-              
-              // Date filter indicator
+
+              // Date filter chip
               if (_startDate != null)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppColors.primarySurface,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.date_range, size: 14, color: AppColors.primary),
-                        const SizedBox(width: 6),
-                        Text(
-                          '${_formatDate(_startDate!)} - ${_formatDate(_endDate!)}',
-                          style: const TextStyle(fontSize: 12, color: AppColors.primaryDark),
-                        ),
-                      ],
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySurface,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.date_range,
+                              size: 14, color: AppColors.primary),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${_formatDate(_startDate!)} – ${_formatDate(_endDate!)}',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.primaryDark),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              
-              const SizedBox(height: 8),
-              
-              // Sales List
+
+              const SizedBox(height: 4),
+
+              // List
               Expanded(
                 child: _loading
-                    ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                            color: AppColors.primary))
                     : _error != null
                         ? _buildErrorWidget()
-                        : _getFilteredSales().isEmpty
+                        : _filteredSales.isEmpty
                             ? _buildEmptyWidget()
                             : RefreshIndicator(
                                 onRefresh: () => _loadSales(reset: true),
                                 color: AppColors.primary,
                                 child: ListView.builder(
                                   controller: _scrollCtrl,
-                                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                                  itemCount: _getFilteredSales().length + (_isLoadingMore ? 1 : 0),
+                                  padding: const EdgeInsets.fromLTRB(
+                                      16, 8, 16, 24),
+                                  itemCount: _filteredSales.length +
+                                      (_isLoadingMore ? 1 : 0),
                                   itemBuilder: (context, index) {
-                                    if (index == _getFilteredSales().length) {
+                                    if (index == _filteredSales.length) {
                                       return const Padding(
                                         padding: EdgeInsets.all(16),
                                         child: Center(
@@ -423,8 +322,8 @@ class _SalesListScreenState extends State<SalesListScreen> {
                                         ),
                                       );
                                     }
-                                    final sale = _getFilteredSales()[index];
-                                    return _buildSaleCard(sale);
+                                    return _buildSaleCard(
+                                        _filteredSales[index]);
                                   },
                                 ),
                               ),
@@ -436,32 +335,19 @@ class _SalesListScreenState extends State<SalesListScreen> {
     );
   }
 
-  List<SaleModel> _getFilteredSales() {
-    if (_searchQuery.isEmpty) return _sales;
-    return _sales.where((s) {
-      return s.invoiceNumber.toLowerCase().contains(_searchQuery) ||
-          s.buyerName.toLowerCase().contains(_searchQuery) ||
-          s.buyerMobile.contains(_searchQuery);
-    }).toList();
-  }
-
   Widget _buildSaleCard(SaleModel sale) {
+    // Use finalReceivable as the primary amount; fall back to grandTotal
+    final displayAmount =
+        sale.finalReceivable > 0 ? sale.finalReceivable : sale.grandTotal;
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
-  context,
-  MaterialPageRoute(
-    builder: (_) => SalesInvoiceScreen(saleId: sale.id),
-  ),
-);
-        Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => SaleDetailScreen(saleId: sale.id),
-          ),
+              builder: (_) => SaleDetailScreen(saleId: sale.id)),
         );
       },
-      
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(14),
@@ -480,6 +366,7 @@ class _SalesListScreenState extends State<SalesListScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Invoice number + status badge
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -494,107 +381,107 @@ class _SalesListScreenState extends State<SalesListScreen> {
                     ),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _getPaymentModeColor(sale.paymentMode).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    _getPaymentModeText(sale.paymentMode),
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: _getPaymentModeColor(sale.paymentMode),
-                      fontFamily: 'Poppins',
-                    ),
-                  ),
-                ),
+                _statusBadge(sale.status),
               ],
             ),
+
             const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.person_outline, size: 14, color: AppColors.textHint),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    sale.buyerName,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textPrimary,
-                      fontFamily: 'Poppins',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (sale.buyerMobile.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(Icons.phone_outlined, size: 14, color: AppColors.textHint),
-                  const SizedBox(width: 6),
-                  Text(
-                    sale.buyerMobile,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                      fontFamily: 'Poppins',
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.calendar_today, size: 12, color: AppColors.textHint),
-                    const SizedBox(width: 4),
-                    Text(
-                      _formatDate(sale.saleDate),
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textHint,
-                        fontFamily: 'Poppins',
-                      ),
-                    ),
-                  ],
-                ),
-                Text(
-                  _formatCurrency(sale.grandTotal),
+
+            // Buyer name
+            Row(children: [
+              const Icon(Icons.person_outline,
+                  size: 14, color: AppColors.textHint),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  sale.buyerName,
                   style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.success,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
                     fontFamily: 'Poppins',
                   ),
                 ),
+              ),
+            ]),
+
+            if ((sale.buyerMobile ?? '').isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(children: [
+                const Icon(Icons.phone_outlined,
+                    size: 14, color: AppColors.textHint),
+                const SizedBox(width: 6),
+                Text(sale.buyerMobile!,
+                    style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                        fontFamily: 'Poppins')),
+              ]),
+            ],
+
+            const SizedBox(height: 8),
+
+            // Date + financial summary row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(children: [
+                  const Icon(Icons.calendar_today,
+                      size: 12, color: AppColors.textHint),
+                  const SizedBox(width: 4),
+                  Text(_formatDate(sale.saleDate),
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textHint,
+                          fontFamily: 'Poppins')),
+                ]),
+                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Text(
+                    _formatCurrency(displayAmount),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.success,
+                      fontFamily: 'Poppins',
+                    ),
+                  ),
+                  if (sale.amountDue > 0)
+                    Text(
+                      'Due: ${_formatCurrency(sale.amountDue)}',
+                      style: const TextStyle(
+                          fontSize: 10,
+                          color: AppColors.error,
+                          fontFamily: 'Poppins',
+                          fontWeight: FontWeight.w500),
+                    ),
+                ]),
               ],
             ),
+
+            // Product chips
             if (sale.lines.isNotEmpty) ...[
               const SizedBox(height: 8),
               Wrap(
                 spacing: 6,
                 runSpacing: 4,
                 children: sale.lines.take(2).map((line) {
+                  // Show bags × rate info if available
+                  final detail = line.bags > 0
+                      ? '${line.bags} bags · ₹${line.rate.toStringAsFixed(0)}'
+                      : '${line.qty.toStringAsFixed(1)} ${line.unit}';
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                     decoration: BoxDecoration(
                       color: AppColors.primarySurface,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      '${line.productName}: ${line.qty} ${line.unit}',
+                      '${line.productName}: $detail',
                       style: const TextStyle(
-                        fontSize: 10,
-                        color: AppColors.primaryDark,
-                        fontFamily: 'Poppins',
-                      ),
+                          fontSize: 10,
+                          color: AppColors.primaryDark,
+                          fontFamily: 'Poppins'),
                     ),
                   );
                 }).toList(),
@@ -602,10 +489,9 @@ class _SalesListScreenState extends State<SalesListScreen> {
               if (sale.lines.length > 2)
                 const Padding(
                   padding: EdgeInsets.only(top: 4),
-                  child: Text(
-                    '+ more items',
-                    style: TextStyle(fontSize: 10, color: AppColors.textHint),
-                  ),
+                  child: Text('+ more items',
+                      style: TextStyle(
+                          fontSize: 10, color: AppColors.textHint)),
                 ),
             ],
           ],
@@ -614,34 +500,34 @@ class _SalesListScreenState extends State<SalesListScreen> {
     );
   }
 
-  Color _getPaymentModeColor(String mode) {
-    switch (mode.toLowerCase()) {
-      case 'cash':
-        return AppColors.success;
-      case 'upi':
-        return AppColors.primary;
-      case 'card':
-        return Colors.orange;
-      case 'bank_transfer':
-        return Colors.purple;
+  Widget _statusBadge(String status) {
+    Color color;
+    switch (status.toLowerCase()) {
+      case 'paid':
+        color = AppColors.success;
+        break;
+      case 'partial':
+        color = AppColors.warning;
+        break;
       default:
-        return AppColors.textHint;
+        color = AppColors.error;
     }
-  }
-
-  String _getPaymentModeText(String mode) {
-    switch (mode.toLowerCase()) {
-      case 'cash':
-        return 'CASH';
-      case 'upi':
-        return 'UPI';
-      case 'card':
-        return 'CARD';
-      case 'bank_transfer':
-        return 'BANK TRANSFER';
-      default:
-        return mode.toUpperCase();
-    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        status[0].toUpperCase() + status.substring(1),
+        style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: color,
+            fontFamily: 'Poppins'),
+      ),
+    );
   }
 
   Widget _buildErrorWidget() {
@@ -651,7 +537,8 @@ class _SalesListScreenState extends State<SalesListScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 56, color: AppColors.error),
+            const Icon(Icons.error_outline,
+                size: 56, color: AppColors.error),
             const SizedBox(height: 16),
             Text(
               _error ?? 'Something went wrong',
@@ -665,8 +552,7 @@ class _SalesListScreenState extends State<SalesListScreen> {
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                    borderRadius: BorderRadius.circular(10)),
               ),
               child: const Text('Retry'),
             ),
@@ -681,25 +567,24 @@ class _SalesListScreenState extends State<SalesListScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.receipt_long_outlined, size: 64, color: AppColors.textHint),
+          const Icon(Icons.receipt_long_outlined,
+              size: 64, color: AppColors.textHint),
           const SizedBox(height: 16),
-          const Text(
-            'No sales invoices found',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textSecondary,
-              fontFamily: 'Poppins',
-            ),
-          ),
+          const Text('No sales invoices found',
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textSecondary,
+                  fontFamily: 'Poppins')),
           const SizedBox(height: 8),
           Text(
-            _startDate != null ? 'Try changing the date filter' : 'Create a new sale to get started',
+            _startDate != null
+                ? 'Try changing the date filter'
+                : 'Create a new sale to get started',
             style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textHint,
-              fontFamily: 'Poppins',
-            ),
+                fontSize: 13,
+                color: AppColors.textHint,
+                fontFamily: 'Poppins'),
           ),
         ],
       ),

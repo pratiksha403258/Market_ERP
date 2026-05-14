@@ -302,22 +302,23 @@ void _confirmForceDelete(PurchaseController controller) {
       _animCtrl.forward();
       controller.nextStep();
     } else {
-      final success = await controller.savePurchase();
+  final success = await controller.savePurchase();
 if (success && mounted) {
-  // Navigate directly to ReceiptScreen
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(
-      builder: (_) => ReceiptScreen(
-        purchaseId: controller.savedPurchaseId!,
-        farmerName: controller.selectedFarmer?.name,
-        farmerMobile: controller.selectedFarmer?.mobile,
-      ),
-    ),
-  );
+  // Show success feedback
+  _showSnack(context, 'Purchase saved successfully!', success: true);
+  
+  // Navigate to purchase list (adjust the route/screen name as needed)
+  // Example using named route:
+  Navigator.pushNamedAndRemoveUntil(context, '/purchases', (route) => false);
+  
+  // Alternative: if you have a widget class, use pushReplacement:
+  // Navigator.pushReplacement(
+  //   context,
+  //   MaterialPageRoute(builder: (_) => const PurchaseListScreen()),
+  // );
 } else if (controller.errorMessage != null && mounted) {
-        _showSnack(context, controller.errorMessage!, success: false);
-      }
+  _showSnack(context, controller.errorMessage!, success: false);
+}
     }
   }
 

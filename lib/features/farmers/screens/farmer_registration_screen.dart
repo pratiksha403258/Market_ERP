@@ -397,7 +397,7 @@ Widget build(BuildContext context) {
       key: const ValueKey('step0'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _stepHeader('👨‍🌾  ${lang.t('basic_information')}', lang.t('farmer_name_contact')),
+        _stepHeader(' ${lang.t('basic_information')}', lang.t('farmer_name_contact')),
         const SizedBox(height: 20),
         _fieldLabel('${lang.t("farmer_name")} *'),
         const SizedBox(height: 6),
@@ -450,7 +450,7 @@ Widget build(BuildContext context) {
       key: const ValueKey('step1'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _stepHeader('📍  ${lang.t('address_details')}', lang.t('village_city_info')),
+        _stepHeader(' ${lang.t('address_details')}', lang.t('village_city_info')),
         const SizedBox(height: 20),
         _fieldLabel(lang.t('village')),
         const SizedBox(height: 6),
@@ -508,7 +508,7 @@ Widget build(BuildContext context) {
       key: const ValueKey('step2'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _stepHeader('🏦  ${lang.t('banking_details')}', lang.t('banking_optional')),
+        _stepHeader(' ${lang.t('banking_details')}', lang.t('banking_optional')),
         const SizedBox(height: 20),
         Container(
           padding: const EdgeInsets.all(12),

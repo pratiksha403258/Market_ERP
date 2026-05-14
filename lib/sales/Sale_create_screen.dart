@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:agr_market/sales/sales_list_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,7 +17,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     with SingleTickerProviderStateMixin {
   // ── Step ──────────────────────────────────────────────────────
   int _step = 0;
-  static const _stepLabels = ['Buyer', 'Product', 'Payment', 'Review'];
+  static const _stepLabels = ['Buyer', 'Product', 'Deductions', 'Review'];
 
   // ── Step 0: Buyer ─────────────────────────────────────────────
   final _buyerNameCtrl = TextEditingController();
@@ -23,28 +25,55 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
   final _buyerGstCtrl = TextEditingController();
   final _buyerAddressCtrl = TextEditingController();
 
-  // ── Step 1: Product ───────────────────────────────────────────
+  // ── Step 1: Product (new kg-based pricing) ────────────────────
   final _productNameCtrl = TextEditingController();
-  final _qtyCtrl = TextEditingController();
-  String _unit = 'kg';
-  final _priceCtrl = TextEditingController();
-  double _gstPercent = 0;
+  String _pricingType = 'kg'; // kg | quintal | fixed
+  final _bagsCtrl = TextEditingController();
+  final _weightPerBagCtrl = TextEditingController();
+  final _qualityDeductionCtrl = TextEditingController();
+  final _rateCtrl = TextEditingController();
+  final _productNotesCtrl = TextEditingController();
 
-  // ── Step 2: Payment ───────────────────────────────────────────
-  String _paymentStatus = 'pending'; // pending | partial | paid
-  final _amountPaidCtrl = TextEditingController();
-  String _paymentMode = 'cash';
+  // ── Step 2: Deductions ────────────────────────────────────────
+  final _transportCtrl = TextEditingController();
+  final _labourCtrl = TextEditingController();
+  final _commissionCtrl = TextEditingController();
+  String _commissionType = 'fixed'; // fixed | percent
+  final _storageCtrl = TextEditingController();
+  final _advanceAdjustedCtrl = TextEditingController();
+  final _otherCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
 
   // ── Computed ──────────────────────────────────────────────────
-  double get _qty => double.tryParse(_qtyCtrl.text) ?? 0;
-  double get _price => double.tryParse(_priceCtrl.text) ?? 0;
-  double get _subtotal => _qty * _price;
-  double get _gstAmount => (_subtotal * _gstPercent) / 100;
-  double get _totalAmount => _subtotal + _gstAmount;
-  double get _amountPaid =>
-      double.tryParse(_amountPaidCtrl.text.trim()) ?? 0;
-  double get _amountDue => (_totalAmount - _amountPaid).clamp(0, double.infinity);
+  int get _bags => int.tryParse(_bagsCtrl.text.trim()) ?? 0;
+  double get _weightPerBag =>
+      double.tryParse(_weightPerBagCtrl.text.trim()) ?? 0;
+  double get _qualityDeduction =>
+      double.tryParse(_qualityDeductionCtrl.text.trim()) ?? 0;
+  double get _rate => double.tryParse(_rateCtrl.text.trim()) ?? 0;
+  double get _actualQty => _bags * _weightPerBag;
+  double get _netQty => _actualQty - _qualityDeduction;
+  double get _grossTotal => _netQty * _rate;
+
+  double get _transport =>
+      double.tryParse(_transportCtrl.text.trim()) ?? 0;
+  double get _labour => double.tryParse(_labourCtrl.text.trim()) ?? 0;
+  double get _commission =>
+      double.tryParse(_commissionCtrl.text.trim()) ?? 0;
+  double get _storage => double.tryParse(_storageCtrl.text.trim()) ?? 0;
+  double get _advanceAdjusted =>
+      double.tryParse(_advanceAdjustedCtrl.text.trim()) ?? 0;
+  double get _other => double.tryParse(_otherCtrl.text.trim()) ?? 0;
+
+  double get _totalDeductions {
+    double commission = _commission;
+    if (_commissionType == 'percent') {
+      commission = (_grossTotal * _commission) / 100;
+    }
+    return _transport + _labour + commission + _storage + _advanceAdjusted + _other;
+  }
+
+  double get _finalReceivable => (_grossTotal - _totalDeductions).clamp(0, double.infinity);
 
   // ── Misc ──────────────────────────────────────────────────────
   bool _saving = false;
@@ -53,9 +82,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
   late final AnimationController _animCtrl;
   late final Animation<double> _fadeAnim;
 
-  static const _units = ['kg', 'qtl', 'pcs', 'bunch', 'crate', 'doz', 'bag', 'ltr', 'ton'];
-  static const _gstOptions = [0.0, 5.0, 12.0, 18.0, 28.0];
-  static const _paymentModes = ['cash', 'upi', 'bank', 'cheque'];
+  static const _pricingTypes = ['kg', 'quintal', 'fixed'];
 
   @override
   void initState() {
@@ -65,8 +92,13 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeIn);
     _animCtrl.forward();
 
-    _qtyCtrl.addListener(_recalc);
-    _priceCtrl.addListener(_recalc);
+    for (final c in [
+      _bagsCtrl, _weightPerBagCtrl, _qualityDeductionCtrl, _rateCtrl,
+      _transportCtrl, _labourCtrl, _commissionCtrl, _storageCtrl,
+      _advanceAdjustedCtrl, _otherCtrl,
+    ]) {
+      c.addListener(_recalc);
+    }
   }
 
   void _recalc() => setState(() {});
@@ -76,7 +108,10 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     _animCtrl.dispose();
     for (final c in [
       _buyerNameCtrl, _buyerMobileCtrl, _buyerGstCtrl, _buyerAddressCtrl,
-      _productNameCtrl, _qtyCtrl, _priceCtrl, _amountPaidCtrl, _notesCtrl,
+      _productNameCtrl, _bagsCtrl, _weightPerBagCtrl, _qualityDeductionCtrl,
+      _rateCtrl, _productNotesCtrl, _transportCtrl, _labourCtrl,
+      _commissionCtrl, _storageCtrl, _advanceAdjustedCtrl, _otherCtrl,
+      _notesCtrl,
     ]) {
       c.dispose();
     }
@@ -91,9 +126,6 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
       return;
     }
     setState(() => _error = null);
-    if (_step == 1 && _paymentStatus == 'paid') {
-      _amountPaidCtrl.text = _totalAmount.toStringAsFixed(2);
-    }
     if (_step < 3) {
       _step++;
       _animCtrl.reset();
@@ -119,32 +151,12 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
 
   void _goToSalesList() async {
     try {
-      final result = await Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const SalesListScreen()),
       );
-      
-      if (result == true && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Sales list updated'),
-            backgroundColor: AppColors.success,
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
     } catch (e) {
       debugPrint('Error navigating to Sales List: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error opening sales list: $e'),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
     }
   }
 
@@ -152,29 +164,24 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     switch (_step) {
       case 0:
         if (_buyerNameCtrl.text.trim().isEmpty) return 'Enter buyer name';
-        if (_buyerNameCtrl.text.trim().length < 2) return 'Enter buyer name (min 2 chars)';
+        if (_buyerNameCtrl.text.trim().length < 2) {
+          return 'Buyer name must be at least 2 characters';
+        }
         if (_buyerMobileCtrl.text.trim().isNotEmpty &&
             _buyerMobileCtrl.text.trim().length != 10) {
-          return 'Mobile must be 10 digits';
+          return 'Mobile number must be 10 digits';
         }
         return null;
       case 1:
         if (_productNameCtrl.text.trim().isEmpty) return 'Enter product name';
-        if (_qty <= 0) return 'Enter valid quantity';
-        if (_qtyCtrl.text.trim().isEmpty) return 'Quantity is required';
-        if (_price <= 0) return 'Enter valid selling price';
-        if (_priceCtrl.text.trim().isEmpty) return 'Price is required';
+        if (_bags <= 0) return 'Enter number of bags (must be > 0)';
+        if (_weightPerBag <= 0) return 'Enter weight per bag (must be > 0)';
+        if (_rate <= 0) return 'Enter rate (must be > 0)';
+        if (_qualityDeduction >= _actualQty)
+          return 'Quality deduction cannot exceed actual quantity';
         return null;
       case 2:
-        if (_paymentStatus == 'partial') {
-          final paid = double.tryParse(_amountPaidCtrl.text.trim()) ?? 0;
-          if (paid <= 0) return 'Enter amount paid for partial payment';
-          if (paid >= _totalAmount) return 'Partial amount must be less than total';
-          if (_amountPaidCtrl.text.trim().isEmpty) return 'Amount paid is required for partial payment';
-        }
-        if (_paymentStatus == 'paid' && _totalAmount <= 0) {
-          return 'Cannot mark as paid with zero amount';
-        }
+        // Deductions are all optional
         return null;
       default:
         return null;
@@ -188,37 +195,48 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
       _error = null;
     });
 
-    double paid = _amountPaid;
-    if (_paymentStatus == 'paid') paid = _totalAmount;
-    if (_paymentStatus == 'pending') paid = 0;
+    // Build lines array as per new API
+    final lines = [
+      {
+        'productName': _productNameCtrl.text.trim(),
+        'pricingType': _pricingType,
+        'bags': _bags,
+        'weightPerBag': _weightPerBag,
+        'actualQty': _actualQty,
+        'qualityDeduction': _qualityDeduction,
+        'rate': _rate,
+        if (_productNotesCtrl.text.trim().isNotEmpty)
+          'notes': _productNotesCtrl.text.trim(),
+      }
+    ];
 
-    final payload = {
+    // Build deductions object
+    final deductions = <String, dynamic>{
+      if (_transport > 0) 'transport': _transport,
+      if (_labour > 0) 'labour': _labour,
+      if (_commission > 0) 'commission': _commission,
+      'commissionType': _commissionType,
+      if (_storage > 0) 'storage': _storage,
+      if (_advanceAdjusted > 0) 'advanceAdjusted': _advanceAdjusted,
+      if (_other > 0) 'other': _other,
+    };
+
+    final payload = <String, dynamic>{
       'buyerName': _buyerNameCtrl.text.trim(),
       if (_buyerMobileCtrl.text.trim().isNotEmpty)
         'buyerMobile': _buyerMobileCtrl.text.trim(),
       if (_buyerGstCtrl.text.trim().isNotEmpty)
         'buyerGst': _buyerGstCtrl.text.trim().toUpperCase(),
+      if (_buyerAddressCtrl.text.trim().isNotEmpty)
+        'buyerAddress': _buyerAddressCtrl.text.trim(),
       'saleDate': DateTime.now().toIso8601String().split('T')[0],
-      'lines': [
-        {
-          'productName': _productNameCtrl.text.trim(),
-          'qty': _qty,
-          'sellingPrice': _price,
-        }
-      ],
-      'gstPercent': _gstPercent,
-      'paymentMode': _paymentMode,
+      'lines': lines,
+      'deductions': deductions,
       if (_notesCtrl.text.trim().isNotEmpty) 'notes': _notesCtrl.text.trim(),
     };
 
-    if (_paymentStatus != 'pending' && _paymentMode != 'cash') {
-      payload['referenceNumber'] = 'REF${DateTime.now().millisecondsSinceEpoch}';
-    }
-
     debugPrint('=== SALE PAYLOAD ===');
-    payload.forEach((key, value) {
-      debugPrint('$key: $value');
-    });
+    debugPrint(jsonEncode(payload));
 
     final result = await SaleService.instance.createSale(payload);
     setState(() => _saving = false);
@@ -235,8 +253,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
       ));
       Navigator.pop(context, true);
     } else {
-      debugPrint('=== SALE ERROR ===');
-      debugPrint('Message: ${result.message}');
+      debugPrint('=== SALE ERROR ===\n${result.message}');
       setState(() => _error = result.message ?? 'Failed to create sale');
     }
   }
@@ -272,18 +289,18 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
-                       GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(10),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.arrow_back_rounded,
+                              color: Colors.white, size: 20),
+                        ),
                       ),
-                      child: const Icon(Icons.arrow_back_rounded,
-                          color: Colors.white, size: 20),
-                    ),
-                  ),
                       const SizedBox(width: 14),
                       const Expanded(
                         child: Text('New Sale',
@@ -329,7 +346,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                 ),
               ),
 
-              // Error message
+              // Error
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -357,7 +374,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
 
               const SizedBox(height: 20),
 
-              // Action button - Continue/Create Sale
+              // Continue / Create Sale button
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: SizedBox(
@@ -402,7 +419,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
 
               const SizedBox(height: 12),
 
-              // NEW: View Sales List Button
+              // View Sales List button
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: SizedBox(
@@ -422,14 +439,11 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                       children: [
                         Icon(Icons.receipt_long_rounded, size: 18),
                         SizedBox(width: 8),
-                        Text(
-                          'View Sales List',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            fontFamily: 'Poppins',
-                          ),
-                        ),
+                        Text('View Sales List',
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                fontFamily: 'Poppins')),
                       ],
                     ),
                   ),
@@ -503,7 +517,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     switch (_step) {
       case 0: return _buildStep0Buyer();
       case 1: return _buildStep1Product();
-      case 2: return _buildStep2Payment();
+      case 2: return _buildStep2Deductions();
       case 3: return _buildStep3Review();
       default: return const SizedBox.shrink();
     }
@@ -541,113 +555,132 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     );
   }
 
-  // ── STEP 1 — Product ──────────────────────────────────────────
+  // ── STEP 1 — Product (kg-based pricing) ──────────────────────
   Widget _buildStep1Product() {
     return Column(
       key: const ValueKey('s1'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _stepHeader('Product Details', 'What are you selling?'),
+        _stepHeader('Product Details', 'Enter weight & rate'),
         const SizedBox(height: 20),
         _field('Product Name *', _productNameCtrl,
-            hint: 'e.g. Tomato',
+            hint: 'e.g. Wheat',
             icon: Icons.eco_outlined,
             caps: TextCapitalization.words),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
 
-        // Qty + Unit row
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(
-            flex: 2,
-            child: _field('Quantity *', _qtyCtrl,
-                hint: '0',
-                icon: Icons.straighten_outlined,
-                inputType: TextInputType.number,
-                formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Unit',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                        fontFamily: 'Poppins')),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceVariant,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _unit,
-                      isExpanded: true,
-                      style: const TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 13,
-                          color: AppColors.textPrimary),
-                      onChanged: (v) => setState(() => _unit = v!),
-                      items: _units
-                          .map((u) => DropdownMenuItem(value: u, child: Text(u)))
-                          .toList(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ]),
-        const SizedBox(height: 12),
-        _field('Selling Price per $_unit (₹) *', _priceCtrl,
-            hint: '0.00',
-            icon: Icons.currency_rupee_rounded,
-            inputType: TextInputType.number,
-            formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
-        const SizedBox(height: 16),
-
-        // GST
-        const Text('GST %',
+        // Pricing type selector
+        const Text('Pricing Type',
             style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
                 fontFamily: 'Poppins')),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8, runSpacing: 8,
-          children: _gstOptions.map((g) {
-            final sel = _gstPercent == g;
-            return GestureDetector(
-              onTap: () => setState(() => _gstPercent = g),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                decoration: BoxDecoration(
-                  color: sel ? AppColors.primary : AppColors.surface,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                      color: sel ? AppColors.primary : AppColors.border),
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceVariant,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: _pricingTypes.map((t) {
+              final sel = _pricingType == t;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _pricingType = t),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: sel ? AppColors.primary : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(t.toUpperCase(),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontFamily: 'Poppins',
+                            fontWeight: FontWeight.w600,
+                            color: sel ? Colors.white : AppColors.textSecondary)),
+                  ),
                 ),
-                child: Text(
-                  g == 0 ? 'No GST' : '${g.toStringAsFixed(0)}%',
-                  style: TextStyle(
-                      color: sel ? Colors.white : AppColors.textSecondary,
-                      fontSize: 12,
-                      fontFamily: 'Poppins',
-                      fontWeight: FontWeight.w600)),
-              ),
-            );
-          }).toList(),
+              );
+            }).toList(),
+          ),
         ),
 
-        // Live calculation
-        if (_subtotal > 0) ...[
+        const SizedBox(height: 14),
+
+        // Bags + Weight per bag
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child: _field('Bags *', _bagsCtrl,
+                hint: '10',
+                icon: Icons.inventory_2_outlined,
+                inputType: TextInputType.number,
+                formatters: [FilteringTextInputFormatter.digitsOnly]),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _field('Weight/Bag (${_pricingType == 'quintal' ? 'qtl' : 'kg'}) *',
+                _weightPerBagCtrl,
+                hint: '50',
+                icon: Icons.scale_outlined,
+                inputType: TextInputType.number,
+                formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+          ),
+        ]),
+
+        const SizedBox(height: 12),
+
+        // Actual qty (auto-computed, read-only display)
+        if (_actualQty > 0)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              const Text('Total Weight',
+                  style: TextStyle(
+                      fontSize: 13, color: AppColors.textSecondary, fontFamily: 'Poppins')),
+              Text('${_actualQty.toStringAsFixed(1)} ${_pricingType == 'quintal' ? 'qtl' : 'kg'}',
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryDark,
+                      fontFamily: 'Poppins')),
+            ]),
+          ),
+
+        const SizedBox(height: 12),
+
+        _field('Quality Deduction (${_pricingType == 'quintal' ? 'qtl' : 'kg'})',
+            _qualityDeductionCtrl,
+            hint: '0',
+            icon: Icons.remove_circle_outline,
+            inputType: TextInputType.number,
+            formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+
+        const SizedBox(height: 12),
+
+        _field('Rate per ${_pricingType == 'quintal' ? 'qtl' : 'kg'} (₹) *', _rateCtrl,
+            hint: '2000',
+            icon: Icons.currency_rupee_rounded,
+            inputType: TextInputType.number,
+            formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+
+        const SizedBox(height: 12),
+
+        _multiLineField('Product Notes (optional)', _productNotesCtrl,
+            hint: 'e.g. Premium quality...'),
+
+        // Live gross total
+        if (_grossTotal > 0) ...[
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(14),
@@ -656,10 +689,13 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
               borderRadius: BorderRadius.circular(14),
             ),
             child: Column(children: [
-              _calcRow('Subtotal', _subtotal),
-              if (_gstPercent > 0) _calcRow('GST (${_gstPercent.toStringAsFixed(0)}%)', _gstAmount),
+              _calcRow('Bags × Weight/Bag', _actualQty, suffix: ' kg'),
+              if (_qualityDeduction > 0)
+                _calcRow('Quality Deduction', _qualityDeduction, suffix: ' kg', negative: true),
+              _calcRow('Net Qty', _netQty, suffix: ' ${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
+              _calcRow('Rate', _rate, prefix: '₹', suffix: '/${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
               const Divider(color: Colors.white24, height: 16),
-              _calcRow('Total Amount', _totalAmount, large: true),
+              _calcRow('Gross Total', _grossTotal, large: true, prefix: '₹'),
             ]),
           ),
         ],
@@ -667,14 +703,15 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     );
   }
 
-  Widget _calcRow(String label, double value, {bool large = false}) {
+  Widget _calcRow(String label, double value,
+      {bool large = false, String prefix = '', String suffix = '', bool negative = false}) {
     return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
       Text(label,
           style: TextStyle(
               color: Colors.white70,
               fontSize: large ? 13 : 12,
               fontFamily: 'Poppins')),
-      Text('₹${value.toStringAsFixed(2)}',
+      Text('${negative ? '-' : ''}$prefix${value.toStringAsFixed(value % 1 == 0 ? 0 : 2)}$suffix',
           style: TextStyle(
               color: Colors.white,
               fontSize: large ? 18 : 13,
@@ -683,16 +720,16 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     ]);
   }
 
-  // ── STEP 2 — Payment ──────────────────────────────────────────
-  Widget _buildStep2Payment() {
+  // ── STEP 2 — Deductions ───────────────────────────────────────
+  Widget _buildStep2Deductions() {
     return Column(
       key: const ValueKey('s2'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _stepHeader('Payment Details', 'How much was collected?'),
+        _stepHeader('Deductions', 'Enter charges & adjustments'),
         const SizedBox(height: 16),
 
-        // Total amount display
+        // Gross total display
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
@@ -701,12 +738,12 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
             border: Border.all(color: AppColors.border),
           ),
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('Total Sale Amount',
+            const Text('Gross Total',
                 style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 13,
                     fontFamily: 'Poppins')),
-            Text('₹${_totalAmount.toStringAsFixed(2)}',
+            Text('₹${_grossTotal.toStringAsFixed(2)}',
                 style: const TextStyle(
                     color: AppColors.primaryDark,
                     fontSize: 15,
@@ -715,148 +752,124 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
           ]),
         ),
 
-        const SizedBox(height: 16),
-        const Text('Payment Status *',
-            style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-                fontFamily: 'Poppins')),
-        const SizedBox(height: 8),
-
-        // Status selector
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceVariant,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Row(
-            children: [
-              _statusChip('pending', 'Pending', AppColors.error),
-              _statusChip('partial', 'Partial', AppColors.warning),
-              _statusChip('paid', 'Paid', AppColors.success),
-            ],
-          ),
-        ),
-
-        // Amount paid field (for partial)
-        if (_paymentStatus == 'partial') ...[
-          const SizedBox(height: 14),
-          _field('Amount Paid (₹) *', _amountPaidCtrl,
-              hint: '0.00',
-              icon: Icons.currency_rupee_rounded,
-              inputType: TextInputType.number,
-              formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
-          if (_amountPaid > 0 && _amountPaid < _totalAmount)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                'Balance due: ₹${_amountDue.toStringAsFixed(2)}',
-                style: const TextStyle(
-                    color: AppColors.warning,
-                    fontSize: 12,
-                    fontFamily: 'Poppins',
-                    fontWeight: FontWeight.w600),
-              ),
-            ),
-        ],
-
-        // Payment mode (not for pending)
-        if (_paymentStatus != 'pending') ...[
-          const SizedBox(height: 16),
-          const Text('Payment Mode',
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                  fontFamily: 'Poppins')),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceVariant,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              children: _paymentModes.map((m) {
-                final sel = _paymentMode == m;
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _paymentMode = m),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: BoxDecoration(
-                        color: sel ? AppColors.primary : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(m.toUpperCase(),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              fontSize: 11,
-                              fontFamily: 'Poppins',
-                              fontWeight: FontWeight.w600,
-                              color: sel ? Colors.white : AppColors.textSecondary)),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-
         const SizedBox(height: 14),
-        _multiLineField('Notes (optional)', _notesCtrl,
+        _field('Transport (₹)', _transportCtrl,
+            hint: '0', icon: Icons.local_shipping_outlined,
+            inputType: TextInputType.number,
+            formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+        const SizedBox(height: 10),
+        _field('Labour (₹)', _labourCtrl,
+            hint: '0', icon: Icons.people_outline,
+            inputType: TextInputType.number,
+            formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+        const SizedBox(height: 10),
+
+        // Commission row with type toggle
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Expanded(
+            flex: 3,
+            child: _field('Commission', _commissionCtrl,
+                hint: '0', icon: Icons.percent_outlined,
+                inputType: TextInputType.number,
+                formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Type',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                        fontFamily: 'Poppins')),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceVariant,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(child: _miniToggle('Fixed', _commissionType == 'fixed',
+                          () => setState(() => _commissionType = 'fixed'))),
+                      Expanded(child: _miniToggle('%', _commissionType == 'percent',
+                          () => setState(() => _commissionType = 'percent'))),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ]),
+
+        const SizedBox(height: 10),
+        _field('Storage (₹)', _storageCtrl,
+            hint: '0', icon: Icons.warehouse_outlined,
+            inputType: TextInputType.number,
+            formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+        const SizedBox(height: 10),
+        _field('Advance Adjusted (₹)', _advanceAdjustedCtrl,
+            hint: '0', icon: Icons.account_balance_wallet_outlined,
+            inputType: TextInputType.number,
+            formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+        const SizedBox(height: 10),
+        _field('Other Deductions (₹)', _otherCtrl,
+            hint: '0', icon: Icons.remove_circle_outline,
+            inputType: TextInputType.number,
+            formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+
+        if (_grossTotal > 0) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: AppColors.heroGradient,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(children: [
+              _calcRow('Gross Total', _grossTotal, prefix: '₹'),
+              _calcRow('Total Deductions', _totalDeductions, prefix: '-₹'),
+              const Divider(color: Colors.white24, height: 16),
+              _calcRow('Final Receivable', _finalReceivable, large: true, prefix: '₹'),
+            ]),
+          ),
+        ],
+
+        const SizedBox(height: 12),
+        _multiLineField('Sale Notes (optional)', _notesCtrl,
             hint: 'Any remarks about this sale...'),
       ],
     );
   }
 
-  Widget _statusChip(String value, String label, Color color) {
-    final sel = _paymentStatus == value;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _paymentStatus = value;
-            if (value == 'paid') {
-              _amountPaidCtrl.text = _totalAmount.toStringAsFixed(2);
-            } else if (value == 'pending') {
-              _amountPaidCtrl.clear();
-            }
-          });
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: sel ? color : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 12,
-                  fontFamily: 'Poppins',
-                  fontWeight: FontWeight.w600,
-                  color: sel ? Colors.white : AppColors.textSecondary)),
+  Widget _miniToggle(String label, bool selected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
         ),
+        child: Text(label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 11,
+                fontFamily: 'Poppins',
+                fontWeight: FontWeight.w600,
+                color: selected ? Colors.white : AppColors.textSecondary)),
       ),
     );
   }
 
   // ── STEP 3 — Review ───────────────────────────────────────────
   Widget _buildStep3Review() {
-    final paid = _paymentStatus == 'paid'
-        ? _totalAmount
-        : _paymentStatus == 'pending'
-            ? 0.0
-            : _amountPaid;
-    final due = (_totalAmount - paid).clamp(0, double.infinity);
-
     return Column(
       key: const ValueKey('s3'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -864,7 +877,6 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
         _stepHeader('Review Sale', 'Confirm before creating'),
         const SizedBox(height: 16),
 
-        // Buyer section
         _reviewSection('Buyer', [
           _reviewRow('Name', _buyerNameCtrl.text.trim()),
           if (_buyerMobileCtrl.text.trim().isNotEmpty)
@@ -874,21 +886,42 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
           if (_buyerAddressCtrl.text.trim().isNotEmpty)
             _reviewRow('Address', _buyerAddressCtrl.text.trim()),
         ], Icons.person_outline_rounded),
+
         const SizedBox(height: 12),
 
-        // Product section
         _reviewSection('Product', [
           _reviewRow('Name', _productNameCtrl.text.trim()),
-          _reviewRow('Quantity', '${_qty.toStringAsFixed(2)} $_unit'),
-          _reviewRow('Rate', '₹${_price.toStringAsFixed(2)} / $_unit'),
-          _reviewRow('Subtotal', '₹${_subtotal.toStringAsFixed(2)}'),
-          if (_gstPercent > 0)
-            _reviewRow('GST (${_gstPercent.toStringAsFixed(0)}%)',
-                '₹${_gstAmount.toStringAsFixed(2)}'),
+          _reviewRow('Pricing Type', _pricingType.toUpperCase()),
+          _reviewRow('Bags', '$_bags'),
+          _reviewRow('Wt/Bag', '${_weightPerBag.toStringAsFixed(1)} ${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
+          _reviewRow('Total Wt', '${_actualQty.toStringAsFixed(1)} ${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
+          if (_qualityDeduction > 0)
+            _reviewRow('Quality Ded.', '-${_qualityDeduction.toStringAsFixed(1)}'),
+          _reviewRow('Net Qty', '${_netQty.toStringAsFixed(1)} ${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
+          _reviewRow('Rate', '₹${_rate.toStringAsFixed(2)}/${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
         ], Icons.eco_outlined),
+
         const SizedBox(height: 12),
 
-        // Financial summary
+        if (_totalDeductions > 0)
+          _reviewSection('Deductions', [
+            if (_transport > 0) _reviewRow('Transport', '₹${_transport.toStringAsFixed(2)}'),
+            if (_labour > 0) _reviewRow('Labour', '₹${_labour.toStringAsFixed(2)}'),
+            if (_commission > 0)
+              _reviewRow('Commission',
+                  _commissionType == 'percent'
+                      ? '$_commission%'
+                      : '₹${_commission.toStringAsFixed(2)}'),
+            if (_storage > 0) _reviewRow('Storage', '₹${_storage.toStringAsFixed(2)}'),
+            if (_advanceAdjusted > 0)
+              _reviewRow('Advance Adj.', '₹${_advanceAdjusted.toStringAsFixed(2)}'),
+            if (_other > 0) _reviewRow('Other', '₹${_other.toStringAsFixed(2)}'),
+            _reviewRow('Total Ded.', '₹${_totalDeductions.toStringAsFixed(2)}'),
+          ], Icons.remove_circle_outline),
+
+        const SizedBox(height: 12),
+
+        // Financial summary card
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -896,61 +929,11 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(children: [
-            _calcRow('Total Amount', _totalAmount, large: true),
-            const SizedBox(height: 6),
-            const Divider(color: Colors.white24, height: 1),
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Payment Status',
-                      style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                          fontFamily: 'Poppins')),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: _paymentStatus == 'paid' 
-                          ? Colors.greenAccent.withOpacity(0.2)
-                          : _paymentStatus == 'partial'
-                              ? Colors.orangeAccent.withOpacity(0.2)
-                              : Colors.redAccent.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _paymentStatus[0].toUpperCase() + _paymentStatus.substring(1),
-                      style: TextStyle(
-                          color: _paymentStatus == 'paid'
-                              ? Colors.greenAccent
-                              : _paymentStatus == 'partial'
-                                  ? Colors.orangeAccent
-                                  : Colors.redAccent,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'Poppins'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            _calcRow('Amount Paid', paid),
-            if (due == 0 && _paymentStatus == 'paid')
-              const Padding(
-                padding: EdgeInsets.only(top: 4),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 14),
-                  SizedBox(width: 6),
-                  Text('Fully Paid',
-                      style: TextStyle(
-                          color: Colors.greenAccent,
-                          fontSize: 12,
-                          fontFamily: 'Poppins',
-                          fontWeight: FontWeight.w600)),
-                ]),
-              ),
+            _calcRow('Gross Total', _grossTotal, prefix: '₹'),
+            if (_totalDeductions > 0)
+              _calcRow('Total Deductions', _totalDeductions, prefix: '-₹'),
+            const Divider(color: Colors.white24, height: 16),
+            _calcRow('Final Receivable', _finalReceivable, large: true, prefix: '₹'),
           ]),
         ),
 
@@ -997,7 +980,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
         children: [
           if (label.isNotEmpty)
             SizedBox(
-              width: 90,
+              width: 100,
               child: Text(label,
                   style: const TextStyle(
                       fontSize: 12,
@@ -1071,8 +1054,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
           counterText: '',
           filled: true,
           fillColor: AppColors.surfaceVariant,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: AppColors.border)),
@@ -1109,8 +1091,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
           hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
           filled: true,
           fillColor: AppColors.surfaceVariant,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: AppColors.border)),

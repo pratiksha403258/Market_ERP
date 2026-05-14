@@ -32,9 +32,10 @@ class MarketErpApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      
       title: 'Market ERP',
       debugShowCheckedModeBanner: false,
-      theme: _buildTheme(),
+   theme: ThemeData(fontFamily: 'NotoSans'),
       initialRoute: '/splash',
       routes: {
         '/splash':    (_) => const SplashScreen(),

@@ -2,7 +2,9 @@ class AppConstants {
   AppConstants._();
  
   static const String baseUrl = 'http://192.168.1.15:5001/api';
- 
+ //static const String baseUrl = 'http://192.168.1.8:5001/api';
+
+
   static const String keyAccessToken  = 'access_token';
   static const String keyRefreshToken = 'refresh_token';
   static const String keyUserId       = 'user_id';
@@ -84,6 +86,12 @@ static const String allFarmersLedger = '/ledger/all/farmers'; //superadmin only
 
 
   static const String profitLoss = '/reports/profit-loss';
+
+    static const String buyers = '/buyers';
+  static String buyerById(String id) => '/buyers/$id';
+  static const String buyersSummary = '/buyers/summary';
+
+  static get baseUrl => null;
 
 }
  
