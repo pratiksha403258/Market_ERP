@@ -34,13 +34,191 @@ import '../models/sale_model.dart';
 // sales_invoice_screen.dart (updated openPrintDialog and PDF builder)
 
 // Update the openPrintDialog method to accept languageCode:
+
+// =============================================================
+//  INVOICE DATA MODEL - Fixed to match API response
+// =============================================================
+
+class SalesInvoiceLine {
+  final String productName;
+  final String warehouse;
+  final double qty;
+  final double sellingPrice;
+  final double lineTotal;
+  final String unit;
+
+  SalesInvoiceLine({
+    required this.productName,
+    required this.warehouse,
+    required this.qty,
+    required this.sellingPrice,
+    required this.lineTotal,
+    required this.unit,
+  });
+
+  factory SalesInvoiceLine.fromJson(Map<String, dynamic> json) {
+    return SalesInvoiceLine(
+      productName: json['productName'] ?? json['product_name'] ?? 'Unknown',
+      warehouse: json['warehouse'] ?? json['warehouseName'] ?? 'Main',
+      qty: (json['netQty'] ?? json['quantity'] ?? 0).toDouble(),
+      sellingPrice: (json['effectiveRate'] ?? json['rate'] ?? 0).toDouble(),
+      lineTotal: (json['lineTotal'] ?? json['total'] ?? 0).toDouble(),
+      unit: json['unit'] ?? 'kg',
+    );
+  }
+}
+
+class SalesInvoiceData {
+  final String invoiceNumber;
+  final DateTime saleDate;
+  final String buyerName;
+  final String? buyerMobile;
+  final String? buyerGst;
+  final String? buyerAddress;
+  final String paymentMode;
+  final String? referenceNumber;
+  final String? notes;
+  final double subTotal;
+  final double gstPercent;
+  final double gstAmount;
+  final double grandTotal;
+  final List<SalesInvoiceLine> lines;
+
+  SalesInvoiceData({
+    required this.invoiceNumber,
+    required this.saleDate,
+    required this.buyerName,
+    this.buyerMobile,
+    this.buyerGst,
+    this.buyerAddress,
+    required this.paymentMode,
+    this.referenceNumber,
+    this.notes,
+    required this.subTotal,
+    required this.gstPercent,
+    required this.gstAmount,
+    required this.grandTotal,
+    required this.lines,
+  });
+
+  factory SalesInvoiceData.fromJson(Map<String, dynamic> json) {
+    // Log the response for debugging
+    print('=== INVOICE DATA PARSING ===');
+    print('Raw JSON: $json');
+    
+    // Handle different response structures
+    final data = json['data'] ?? json;
+    final sale = data['sale'] ?? data;
+    
+    // Parse sale lines - handle multiple possible structures
+    List<SalesInvoiceLine> parseLines() {
+      // Try different possible paths for lines
+      List<dynamic> linesList = [];
+      
+      if (sale['lines'] != null && sale['lines'] is List) {
+        linesList = sale['lines'] as List<dynamic>;
+      } else if (sale['items'] != null && sale['items'] is List) {
+        linesList = sale['items'] as List<dynamic>;
+      } else if (sale['products'] != null && sale['products'] is List) {
+        linesList = sale['products'] as List<dynamic>;
+      } else if (data['lines'] != null && data['lines'] is List) {
+        linesList = data['lines'] as List<dynamic>;
+      }
+      
+      print('Found ${linesList.length} line items');
+      
+      if (linesList.isEmpty) {
+        print('WARNING: No line items found in response');
+      }
+      
+      return linesList.map((line) => SalesInvoiceLine.fromJson(line as Map<String, dynamic>)).toList();
+    }
+    
+    // Parse numeric values safely
+    double parseDouble(dynamic value, {double defaultValue = 0}) {
+      if (value == null) return defaultValue;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) return double.tryParse(value) ?? defaultValue;
+      return defaultValue;
+    }
+    
+    // Get sale lines
+    final lines = parseLines();
+    
+    // Calculate totals from lines if needed
+    double calculatedSubTotal = lines.fold(0, (sum, line) => sum + line.lineTotal);
+    double calculatedGrandTotal = sale['finalReceivable'] != null 
+        ? parseDouble(sale['finalReceivable'])
+        : (sale['grandTotal'] != null ? parseDouble(sale['grandTotal']) : calculatedSubTotal);
+    
+    // Parse GST (might be in different fields)
+    double gstPercent = parseDouble(sale['gstPercent'] ?? sale['gst_rate'] ?? 0);
+    double gstAmount = parseDouble(sale['gstAmount'] ?? sale['gst_amount'] ?? 0);
+    
+    // If GST amount is 0 but GST percent > 0, calculate it
+    if (gstAmount == 0 && gstPercent > 0 && calculatedSubTotal > 0) {
+      gstAmount = calculatedSubTotal * (gstPercent / 100);
+    }
+    
+    // Parse date
+    DateTime parseDate(dynamic dateValue) {
+      if (dateValue == null) return DateTime.now();
+      if (dateValue is DateTime) return dateValue;
+      if (dateValue is String) {
+        try {
+          return DateTime.parse(dateValue);
+        } catch (e) {
+          // Try alternative date formats
+          final formats = [
+            'yyyy-MM-dd',
+            'dd/MM/yyyy',
+            'MM/dd/yyyy',
+          ];
+          for (var format in formats) {
+            try {
+              return DateFormat(format).parse(dateValue);
+            } catch (_) {}
+          }
+          return DateTime.now();
+        }
+      }
+      return DateTime.now();
+    }
+    
+    final invoiceData = SalesInvoiceData(
+      invoiceNumber: sale['invoiceNumber'] ?? sale['invoice_number'] ?? 'INV-${DateTime.now().millisecondsSinceEpoch}',
+      saleDate: parseDate(sale['saleDate'] ?? sale['sale_date'] ?? sale['date']),
+      buyerName: sale['buyerName'] ?? sale['buyer_name'] ?? sale['buyer']?['name'] ?? 'Unknown Buyer',
+      buyerMobile: sale['buyerMobile'] ?? sale['buyer_mobile'] ?? sale['buyer']?['mobile'],
+      buyerGst: sale['buyerGst'] ?? sale['buyer_gst'] ?? sale['buyer']?['gst'],
+      buyerAddress: sale['buyerAddress'] ?? sale['buyer_address'] ?? sale['buyer']?['address'],
+      paymentMode: sale['paymentMode'] ?? sale['payment_mode'] ?? 'cash',
+      referenceNumber: sale['referenceNumber'] ?? sale['reference_number'] ?? sale['chequeNumber'],
+      notes: sale['notes'] ?? sale['remarks'],
+      subTotal: calculatedSubTotal,
+      gstPercent: gstPercent,
+      gstAmount: gstAmount,
+      grandTotal: calculatedGrandTotal,
+      lines: lines,
+    );
+    
+    print('=== PARSED INVOICE DATA ===');
+    print('Invoice No: ${invoiceData.invoiceNumber}');
+    print('Sub Total: ${invoiceData.subTotal}');
+    print('Grand Total: ${invoiceData.grandTotal}');
+    print('Lines Count: ${invoiceData.lines.length}');
+    
+    return invoiceData;
+  }
+}
 class SalesInvoicePrinter {
   static Future<void> openPrintDialog(
     BuildContext context,
     String saleId, {
     required String languageCode,
   }) async {
-    // Show a blocking loading overlay while we fetch + build PDF
+    // Show a blocking loading overlay
     final overlayState = Overlay.of(context);
     final overlayEntry = OverlayEntry(
       builder: (_) => const ColoredBox(
@@ -53,33 +231,55 @@ class SalesInvoicePrinter {
     overlayState.insert(overlayEntry);
 
     try {
+      print('=== FETCHING INVOICE DATA FOR SALE: $saleId ===');
+      
       // 1 ── Fetch invoice data
-      final response =
-          await DioClient.instance.dio.get(ApiRoutes.saleById(saleId));
+      final response = await DioClient.instance.dio.get(
+        ApiRoutes.saleById(saleId),
+      );
+      
+      print('Response status: ${response.statusCode}');
+      print('Response data: ${response.data}');
+      
       final responseData = response.data as Map<String, dynamic>;
+      
       if (responseData['success'] != true) {
-        throw Exception(
-            responseData['message'] ?? 'Failed to load invoice');
+        throw Exception(responseData['message'] ?? 'Failed to load invoice');
       }
-      final inv = SalesInvoiceData.fromJson(
-          responseData['data'] as Map<String, dynamic>);
-
-      // 2 ── Build PDF with selected language
+      
+      // 2 ── Parse invoice data
+      final inv = SalesInvoiceData.fromJson(responseData);
+      
+      // Validate we have data
+      if (inv.lines.isEmpty) {
+        throw Exception('No products found in this sale');
+      }
+      
+      if (inv.grandTotal <= 0) {
+        print('WARNING: Grand total is ${inv.grandTotal}, check calculations');
+      }
+      
+      // 3 ── Build PDF
       final doc = await _InvoicePdfBuilder.build(inv, languageCode: languageCode);
 
-      // 3 ── Open native print / download sheet
+      // 4 ── Open native print / download sheet
       overlayEntry.remove();
       await Printing.layoutPdf(
         onLayout: (_) => doc.save(),
         name: 'Invoice_${inv.invoiceNumber}.pdf',
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('=== ERROR GENERATING INVOICE ===');
+      print('Error: $e');
+      print('StackTrace: $stackTrace');
+      
       overlayEntry.remove();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error generating invoice: $e'),
+            content: Text('Error: ${e.toString()}'),
             backgroundColor: Colors.red.shade700,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
