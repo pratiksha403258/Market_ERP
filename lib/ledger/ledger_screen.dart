@@ -1,14 +1,26 @@
+// lib/features/ledger/screens/LedgerScreen.dart
+//
+// Replace your existing LedgerScreen.dart with this file.
+// Adds a "Buyers" tab alongside Farmers and Operators.
+
+import 'package:agr_market/ledger/buyer_ledger_list_screen.dart';
+import 'package:agr_market/services/constant_service.dart';
+import 'package:agr_market/services/dio_client.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/colors.dart';
-import '../../../services/dio_client.dart';
-import '../../../services/constant_service.dart';
 import '../../../providers/language_provider.dart';
 import '../models/ledger_models.dart';
 import 'FarmerLedgerDetailScreen.dart';
 import '../ledger/OperatorLedgerDetailScreen.dart';
 
+// ──────────────────────────────────────────────────────────────────────────────
+// ApiRoutes — add these two entries to your existing constant_service.dart:
+//
+//   static const String allBuyersLedger = '/api/ledger/all/buyers';
+//   static const String buyerLedger     = '/api/ledger/buyer';  // + '/{id}'
+// ──────────────────────────────────────────────────────────────────────────────
 
 class LedgerScreen extends StatefulWidget {
   const LedgerScreen({super.key});
@@ -17,13 +29,14 @@ class LedgerScreen extends StatefulWidget {
   State<LedgerScreen> createState() => _LedgerScreenState();
 }
 
-class _LedgerScreenState extends State<LedgerScreen> with SingleTickerProviderStateMixin {
+class _LedgerScreenState extends State<LedgerScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this); // ← 3 tabs now
   }
 
   @override
@@ -63,20 +76,22 @@ class _LedgerScreenState extends State<LedgerScreen> with SingleTickerProviderSt
             bottom: TabBar(
               controller: _tabController,
               indicatorColor: Colors.white,
+              indicatorWeight: 3,
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
               labelStyle: const TextStyle(
                 fontFamily: 'Poppins',
                 fontWeight: FontWeight.w600,
-                fontSize: 14,
+                fontSize: 13,
               ),
               unselectedLabelStyle: const TextStyle(
                 fontFamily: 'Poppins',
-                fontSize: 14,
+                fontSize: 13,
               ),
               tabs: [
                 Tab(text: langProv.t('farmers_tab')),
                 Tab(text: langProv.t('operators_tab')),
+                Tab(text: langProv.t('buyers_tab')), // ← new tab
               ],
             ),
           ),
@@ -85,6 +100,7 @@ class _LedgerScreenState extends State<LedgerScreen> with SingleTickerProviderSt
             children: const [
               FarmerLedgerListScreen(),
               OperatorLedgerListScreen(),
+              BuyerLedgerListScreen(), // ← new screen
             ],
           ),
         );
@@ -94,6 +110,7 @@ class _LedgerScreenState extends State<LedgerScreen> with SingleTickerProviderSt
 }
 
 // ==================== FARMER LEDGER LIST SCREEN ====================
+// (unchanged — keep your existing FarmerLedgerListScreen here)
 class FarmerLedgerListScreen extends StatefulWidget {
   const FarmerLedgerListScreen({super.key});
 
@@ -106,7 +123,7 @@ class _FarmerLedgerListScreenState extends State<FarmerLedgerListScreen> {
   bool _loading = true;
   String _searchQuery = '';
   final TextEditingController _searchCtrl = TextEditingController();
-  
+
   int _currentPage = 1;
   int _totalPages = 1;
   bool _isLoadingMore = false;
@@ -127,7 +144,8 @@ class _FarmerLedgerListScreenState extends State<FarmerLedgerListScreen> {
   }
 
   void _onScroll() {
-    if (_scrollCtrl.position.pixels >= _scrollCtrl.position.maxScrollExtent - 200 &&
+    if (_scrollCtrl.position.pixels >=
+            _scrollCtrl.position.maxScrollExtent - 200 &&
         !_isLoadingMore &&
         _currentPage < _totalPages) {
       _loadMoreFarmers();
@@ -148,9 +166,7 @@ class _FarmerLedgerListScreenState extends State<FarmerLedgerListScreen> {
         'page': _currentPage,
         'limit': 20,
       };
-      if (_searchQuery.isNotEmpty) {
-        params['search'] = _searchQuery;
-      }
+      if (_searchQuery.isNotEmpty) params['search'] = _searchQuery;
 
       final res = await DioClient.instance.dio.get(
         ApiRoutes.allFarmersLedger,
@@ -160,7 +176,6 @@ class _FarmerLedgerListScreenState extends State<FarmerLedgerListScreen> {
       final responseData = res.data as Map<String, dynamic>;
       if (responseData['success'] == true) {
         final data = AllFarmersLedgerData.fromJson(responseData['data']);
-        
         setState(() {
           if (reset) {
             _farmers = data.farmers;
@@ -175,25 +190,18 @@ class _FarmerLedgerListScreenState extends State<FarmerLedgerListScreen> {
       }
     } catch (e) {
       debugPrint('Error loading farmers ledger: $e');
-      setState(() {
-        _loading = false;
-      });
+      setState(() => _loading = false);
     }
   }
 
   Future<void> _loadMoreFarmers() async {
     if (_isLoadingMore || _currentPage >= _totalPages) return;
-    
     setState(() {
       _isLoadingMore = true;
       _currentPage++;
     });
-    
     await _loadFarmersLedger(reset: false);
-    
-    setState(() {
-      _isLoadingMore = false;
-    });
+    setState(() => _isLoadingMore = false);
   }
 
   List<FarmerLedgerItem> get _filteredFarmers {
@@ -222,18 +230,14 @@ class _FarmerLedgerListScreenState extends State<FarmerLedgerListScreen> {
   Widget build(BuildContext context) {
     return Consumer<LanguageProvider>(
       builder: (context, langProv, child) {
-        
         return Column(
           children: [
-            // Search Bar
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
               child: TextField(
                 controller: _searchCtrl,
                 onChanged: (v) {
-                  setState(() {
-                    _searchQuery = v;
-                  });
+                  setState(() => _searchQuery = v);
                   _loadFarmersLedger(reset: true);
                 },
                 style: const TextStyle(
@@ -248,7 +252,8 @@ class _FarmerLedgerListScreenState extends State<FarmerLedgerListScreen> {
                     fontSize: 13,
                     color: AppColors.textHint,
                   ),
-                  prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textHint, size: 20),
+                  prefixIcon: const Icon(Icons.search_rounded,
+                      color: AppColors.textHint, size: 20),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? GestureDetector(
                           onTap: () {
@@ -256,12 +261,14 @@ class _FarmerLedgerListScreenState extends State<FarmerLedgerListScreen> {
                             setState(() => _searchQuery = '');
                             _loadFarmersLedger(reset: true);
                           },
-                          child: const Icon(Icons.close_rounded, color: AppColors.textHint, size: 18),
+                          child: const Icon(Icons.close_rounded,
+                              color: AppColors.textHint, size: 18),
                         )
                       : null,
                   filled: true,
                   fillColor: AppColors.surface,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(color: AppColors.border),
@@ -272,22 +279,24 @@ class _FarmerLedgerListScreenState extends State<FarmerLedgerListScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                    borderSide:
+                        const BorderSide(color: AppColors.primary, width: 1.5),
                   ),
                 ),
               ),
             ),
-            
-            // Farmer List
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                          color: AppColors.primary))
                   : _filteredFarmers.isEmpty
                       ? Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.people_outline, size: 56, color: AppColors.textHint),
+                              const Icon(Icons.people_outline,
+                                  size: 56, color: AppColors.textHint),
                               const SizedBox(height: 12),
                               Text(
                                 _searchQuery.isNotEmpty
@@ -307,8 +316,10 @@ class _FarmerLedgerListScreenState extends State<FarmerLedgerListScreen> {
                           color: AppColors.primary,
                           child: ListView.builder(
                             controller: _scrollCtrl,
-                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                            itemCount: _filteredFarmers.length + (_isLoadingMore ? 1 : 0),
+                            padding:
+                                const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                            itemCount: _filteredFarmers.length +
+                                (_isLoadingMore ? 1 : 0),
                             itemBuilder: (_, i) {
                               if (i == _filteredFarmers.length) {
                                 return const Padding(
@@ -324,10 +335,11 @@ class _FarmerLedgerListScreenState extends State<FarmerLedgerListScreen> {
                               final farmer = _filteredFarmers[i];
                               final name = farmer.farmer.name;
                               final mobile = farmer.farmer.mobile;
-                              final pendingDues = farmer.financialSummary.closingBalance > 0 
-                                  ? farmer.financialSummary.closingBalance 
-                                  : 0;
-                              
+                              final pendingDues =
+                                  farmer.financialSummary.closingBalance > 0
+                                      ? farmer.financialSummary.closingBalance
+                                      : 0;
+
                               return GestureDetector(
                                 onTap: () => Navigator.push(
                                   context,
@@ -345,10 +357,12 @@ class _FarmerLedgerListScreenState extends State<FarmerLedgerListScreen> {
                                   decoration: BoxDecoration(
                                     color: AppColors.surface,
                                     borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: AppColors.border),
+                                    border: Border.all(
+                                        color: AppColors.border),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withOpacity(0.04),
+                                        color:
+                                            Colors.black.withOpacity(0.04),
                                         blurRadius: 8,
                                         offset: const Offset(0, 2),
                                       ),
@@ -378,7 +392,8 @@ class _FarmerLedgerListScreenState extends State<FarmerLedgerListScreen> {
                                       const SizedBox(width: 12),
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Text(
                                               name,
@@ -394,7 +409,8 @@ class _FarmerLedgerListScreenState extends State<FarmerLedgerListScreen> {
                                               mobile,
                                               style: const TextStyle(
                                                 fontSize: 12,
-                                                color: AppColors.textSecondary,
+                                                color:
+                                                    AppColors.textSecondary,
                                                 fontFamily: 'Poppins',
                                               ),
                                             ),
@@ -402,32 +418,42 @@ class _FarmerLedgerListScreenState extends State<FarmerLedgerListScreen> {
                                         ),
                                       ),
                                       Column(
-                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
                                         children: [
                                           if (pendingDues > 0)
                                             Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 3),
                                               decoration: BoxDecoration(
-                                                color: AppColors.warningSurface,
-                                                borderRadius: BorderRadius.circular(8),
+                                                color:
+                                                    AppColors.warningSurface,
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
                                               ),
-                                              child: // At the line where you use _fmtAmount (around line 285)
-Text(
-  '${langProv.t('due_short')} ${_fmtAmount(pendingDues.toDouble())}',  // Add .toDouble()
-  style: const TextStyle(
-    fontSize: 10,
-    fontWeight: FontWeight.w600,
-    color: AppColors.warning,
-    fontFamily: 'Poppins',
-  ),
-),
+                                              child: Text(
+                                                '${langProv.t('due_short')} ${_fmtAmount(pendingDues.toDouble())}',
+                                                style: const TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: AppColors.warning,
+                                                  fontFamily: 'Poppins',
+                                                ),
+                                              ),
                                             )
                                           else
                                             Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 3),
                                               decoration: BoxDecoration(
-                                                color: AppColors.successSurface,
-                                                borderRadius: BorderRadius.circular(8),
+                                                color:
+                                                    AppColors.successSurface,
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
                                               ),
                                               child: Text(
                                                 langProv.t('clear_short'),
@@ -463,11 +489,13 @@ Text(
 }
 
 // ==================== OPERATOR LEDGER LIST SCREEN ====================
+// (unchanged — keep your existing OperatorLedgerListScreen here)
 class OperatorLedgerListScreen extends StatefulWidget {
   const OperatorLedgerListScreen({super.key});
 
   @override
-  State<OperatorLedgerListScreen> createState() => _OperatorLedgerListScreenState();
+  State<OperatorLedgerListScreen> createState() =>
+      _OperatorLedgerListScreenState();
 }
 
 class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
@@ -475,12 +503,12 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
   bool _loading = true;
   String _searchQuery = '';
   final TextEditingController _searchCtrl = TextEditingController();
-  
+
   int _currentPage = 1;
   int _totalPages = 1;
   bool _isLoadingMore = false;
   final ScrollController _scrollCtrl = ScrollController();
-  
+
   String _sortBy = 'name';
   String _sortOrder = 'asc';
 
@@ -499,7 +527,8 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
   }
 
   void _onScroll() {
-    if (_scrollCtrl.position.pixels >= _scrollCtrl.position.maxScrollExtent - 200 &&
+    if (_scrollCtrl.position.pixels >=
+            _scrollCtrl.position.maxScrollExtent - 200 &&
         !_isLoadingMore &&
         _currentPage < _totalPages) {
       _loadMoreOperators();
@@ -522,9 +551,7 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
         'sortBy': _sortBy,
         'sortOrder': _sortOrder,
       };
-      if (_searchQuery.isNotEmpty) {
-        params['search'] = _searchQuery;
-      }
+      if (_searchQuery.isNotEmpty) params['search'] = _searchQuery;
 
       final res = await DioClient.instance.dio.get(
         ApiRoutes.allOperatorsLedger,
@@ -534,7 +561,6 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
       final responseData = res.data as Map<String, dynamic>;
       if (responseData['success'] == true) {
         final data = AllOperatorsLedgerData.fromJson(responseData['data']);
-        
         setState(() {
           if (reset) {
             _operators = data.operators;
@@ -549,31 +575,22 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
       }
     } catch (e) {
       debugPrint('Error loading operators ledger: $e');
-      setState(() {
-        _loading = false;
-      });
+      setState(() => _loading = false);
     }
   }
 
   Future<void> _loadMoreOperators() async {
     if (_isLoadingMore || _currentPage >= _totalPages) return;
-    
     setState(() {
       _isLoadingMore = true;
       _currentPage++;
     });
-    
     await _loadOperatorsLedger(reset: false);
-    
-    setState(() {
-      _isLoadingMore = false;
-    });
+    setState(() => _isLoadingMore = false);
   }
 
   void _toggleSortOrder() {
-    setState(() {
-      _sortOrder = _sortOrder == 'asc' ? 'desc' : 'asc';
-    });
+    setState(() => _sortOrder = _sortOrder == 'asc' ? 'desc' : 'asc');
     _loadOperatorsLedger(reset: true);
   }
 
@@ -583,15 +600,18 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
     return '₹${v.toStringAsFixed(0)}';
   }
 
+  String _initials(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    return name.isNotEmpty ? name[0].toUpperCase() : 'O';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<LanguageProvider>(
       builder: (context, langProv, child) {
-        final isMarathi = langProv.locale.languageCode == 'mr';
-        
         return Column(
           children: [
-            // Search Bar
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
               child: Row(
@@ -600,9 +620,7 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
                     child: TextField(
                       controller: _searchCtrl,
                       onChanged: (v) {
-                        setState(() {
-                          _searchQuery = v;
-                        });
+                        setState(() => _searchQuery = v);
                         _loadOperatorsLedger(reset: true);
                       },
                       style: const TextStyle(
@@ -617,7 +635,8 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
                           fontSize: 13,
                           color: AppColors.textHint,
                         ),
-                        prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textHint, size: 20),
+                        prefixIcon: const Icon(Icons.search_rounded,
+                            color: AppColors.textHint, size: 20),
                         suffixIcon: _searchQuery.isNotEmpty
                             ? GestureDetector(
                                 onTap: () {
@@ -625,23 +644,28 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
                                   setState(() => _searchQuery = '');
                                   _loadOperatorsLedger(reset: true);
                                 },
-                                child: const Icon(Icons.close_rounded, color: AppColors.textHint, size: 18),
+                                child: const Icon(Icons.close_rounded,
+                                    color: AppColors.textHint, size: 18),
                               )
                             : null,
                         filled: true,
                         fillColor: AppColors.surface,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.border),
+                          borderSide:
+                              const BorderSide(color: AppColors.border),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.border),
+                          borderSide:
+                              const BorderSide(color: AppColors.border),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                          borderSide: const BorderSide(
+                              color: AppColors.primary, width: 1.5),
                         ),
                       ),
                     ),
@@ -657,7 +681,9 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
                         border: Border.all(color: AppColors.border),
                       ),
                       child: Icon(
-                        _sortOrder == 'asc' ? Icons.arrow_upward : Icons.arrow_downward,
+                        _sortOrder == 'asc'
+                            ? Icons.arrow_upward
+                            : Icons.arrow_downward,
                         color: AppColors.primary,
                         size: 20,
                       ),
@@ -666,17 +692,18 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
                 ],
               ),
             ),
-            
-            // Operator List
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                          color: AppColors.primary))
                   : _operators.isEmpty
                       ? Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.person_outline, size: 56, color: AppColors.textHint),
+                              const Icon(Icons.person_outline,
+                                  size: 56, color: AppColors.textHint),
                               const SizedBox(height: 12),
                               Text(
                                 _searchQuery.isNotEmpty
@@ -696,8 +723,10 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
                           color: AppColors.primary,
                           child: ListView.builder(
                             controller: _scrollCtrl,
-                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                            itemCount: _operators.length + (_isLoadingMore ? 1 : 0),
+                            padding:
+                                const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                            itemCount: _operators.length +
+                                (_isLoadingMore ? 1 : 0),
                             itemBuilder: (_, i) {
                               if (i == _operators.length) {
                                 return const Padding(
@@ -714,9 +743,10 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
                               final name = operator.operator.name;
                               final email = operator.operator.email;
                               final phone = operator.operator.phone;
-                              final netProfit = operator.financialSummary.netProfit;
+                              final netProfit =
+                                  operator.financialSummary.netProfit;
                               final isProfitable = netProfit >= 0;
-                              
+
                               return GestureDetector(
                                 onTap: () => Navigator.push(
                                   context,
@@ -735,10 +765,12 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
                                   decoration: BoxDecoration(
                                     color: AppColors.surface,
                                     borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: AppColors.border),
+                                    border: Border.all(
+                                        color: AppColors.border),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withOpacity(0.04),
+                                        color:
+                                            Colors.black.withOpacity(0.04),
                                         blurRadius: 8,
                                         offset: const Offset(0, 2),
                                       ),
@@ -768,7 +800,8 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
                                       const SizedBox(width: 12),
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Text(
                                               name,
@@ -785,7 +818,8 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
                                                 email,
                                                 style: const TextStyle(
                                                   fontSize: 11,
-                                                  color: AppColors.textSecondary,
+                                                  color:
+                                                      AppColors.textSecondary,
                                                   fontFamily: 'Poppins',
                                                 ),
                                               ),
@@ -802,19 +836,27 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
                                         ),
                                       ),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 5),
                                         decoration: BoxDecoration(
-                                          color: isProfitable ? AppColors.successSurface : AppColors.warningSurface,
-                                          borderRadius: BorderRadius.circular(8),
+                                          color: isProfitable
+                                              ? AppColors.successSurface
+                                              : AppColors.warningSurface,
+                                          borderRadius:
+                                              BorderRadius.circular(8),
                                         ),
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
                                           children: [
                                             Text(
-                                              langProv.t('net_profit_short'),
+                                              langProv
+                                                  .t('net_profit_short'),
                                               style: TextStyle(
                                                 fontSize: 8,
-                                                color: isProfitable ? AppColors.success : AppColors.warning,
+                                                color: isProfitable
+                                                    ? AppColors.success
+                                                    : AppColors.warning,
                                                 fontFamily: 'Poppins',
                                               ),
                                             ),
@@ -823,7 +865,9 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
                                               style: TextStyle(
                                                 fontSize: 12,
                                                 fontWeight: FontWeight.w700,
-                                                color: isProfitable ? AppColors.success : AppColors.warning,
+                                                color: isProfitable
+                                                    ? AppColors.success
+                                                    : AppColors.warning,
                                                 fontFamily: 'Poppins',
                                               ),
                                             ),
@@ -848,11 +892,5 @@ class _OperatorLedgerListScreenState extends State<OperatorLedgerListScreen> {
         );
       },
     );
-  }
-  
-  String _initials(String name) {
-    final parts = name.trim().split(' ');
-    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    return name.isNotEmpty ? name[0].toUpperCase() : 'O';
   }
 }

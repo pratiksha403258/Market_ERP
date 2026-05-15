@@ -491,7 +491,7 @@ class _LoginScreenState extends State<LoginScreen>
                                 fontFamily: 'Poppins')),
                       ]),
                       const Spacer(),
-                      const Text('Welcome Back! 👋',
+                      const Text('Welcome Back!',
                           style: TextStyle(color: Colors.white, fontSize: 28,
                               fontWeight: FontWeight.w700,
                               fontFamily: 'Poppins')),

@@ -1,3 +1,4 @@
+import 'package:agr_market/sales/sale_payment_screen.dart';
 import 'package:agr_market/sales/sales_detail_sheet.dart';
 import 'package:agr_market/sales/sales_invoice_screen.dart';
 import 'package:flutter/material.dart';
@@ -494,8 +495,51 @@ class _SalesListScreenState extends State<SalesListScreen> {
                           fontSize: 10, color: AppColors.textHint)),
                 ),
             ],
-          ],
+          
+          if (sale.status != 'paid' && sale.amountDue > 0) ...[
+  const SizedBox(height: 10),
+  SizedBox(
+    width: double.infinity,
+    child: ElevatedButton.icon(
+      onPressed: () async {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SalePaymentScreen(
+              saleId: sale.id,
+              invoiceNumber: sale.invoiceNumber,
+              buyerName: sale.buyerName,
+              totalAmount: displayAmount,
+              amountDue: sale.amountDue,
+            ),
+          ),
+        );
+        if (result == true) {
+          _loadSales(reset: true); // refresh list after payment
+        }
+      },
+      icon: const Icon(Icons.payments_rounded, size: 16),
+      label: Text(
+        'Pay ${_formatCurrency(sale.amountDue)} Due',
+        style: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
         ),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+      ),
+    ),
+  ),
+],
+      ],  ),
       ),
     );
   }

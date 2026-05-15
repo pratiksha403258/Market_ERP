@@ -14,6 +14,8 @@ class ReportsScreen extends StatefulWidget {
 class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ReportService _reportService = ReportService.instance;
+
+  int _selectedProductTab = 0;
   
   // Date range pickers
   DateTime _startDate = DateTime(DateTime.now().year, DateTime.now().month, 1);
@@ -123,6 +125,7 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -131,16 +134,22 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
         backgroundColor: Colors.white,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: AppColors.primary,
-          labelColor: AppColors.primary,
-          unselectedLabelColor: AppColors.textHint,
-          tabs: const [
-            Tab(text: 'Profit & Loss', icon: Icon(Icons.show_chart_rounded)),
-            Tab(text: 'Inventory', icon: Icon(Icons.inventory_2_rounded)),
-            Tab(text: 'Products', icon: Icon(Icons.production_quantity_limits_rounded)),
-          ],
+        toolbarHeight: 60, // Reduce toolbar height
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(40), // Reduce TabBar height
+          child: TabBar(
+            controller: _tabController,
+            indicatorColor: AppColors.primary,
+            labelColor: AppColors.primary,
+            unselectedLabelColor: AppColors.textHint,
+            labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500), // Smaller font
+            unselectedLabelStyle: const TextStyle(fontSize: 12),
+            tabs: const [
+              Tab(text: 'Profit & Loss', icon: Icon(Icons.show_chart_rounded, size: 18)),
+              Tab(text: 'Inventory', icon: Icon(Icons.inventory_2_rounded, size: 18)),
+              Tab(text: 'Products', icon: Icon(Icons.production_quantity_limits_rounded, size: 18)),
+            ],
+          ),
         ),
       ),
       body: TabBarView(
@@ -156,7 +165,7 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
 
   Widget _buildProfitLossTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       child: Column(
         children: [
           // Date Range Selector
@@ -384,31 +393,82 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
     final purchased = _productPerformanceData?['purchased'] as List? ?? [];
     final sold = _productPerformanceData?['sold'] as List? ?? [];
     final currentStock = _productPerformanceData?['currentStock'] as List? ?? [];
-    
-    return DefaultTabController(
-      length: 3,
-      child: Column(
-        children: [
-          const TabBar(
-            indicatorColor: AppColors.primary,
-            labelColor: AppColors.primary,
-            unselectedLabelColor: AppColors.textHint,
-            tabs: [
-              Tab(text: 'Purchased', icon: Icon(Icons.add_shopping_cart)),
-              Tab(text: 'Sold', icon: Icon(Icons.shopping_cart_checkout)),
-              Tab(text: 'Current Stock', icon: Icon(Icons.inventory)),
+
+    if (_loadingProducts) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    }
+
+    return Column(
+      children: [
+        // Compact tab buttons - reduced padding
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 4), // Reduced top/bottom padding from 8 to 4
+          child: Row(
+            children: [
+              _buildProductTabButton('Purchased', 0, Icons.add_shopping_cart),
+              const SizedBox(width: 4), // Reduced from 6 to 4
+              _buildProductTabButton('Sold', 1, Icons.shopping_cart_checkout),
+              const SizedBox(width: 4),
+              _buildProductTabButton('Stock', 2, Icons.inventory),
             ],
           ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _buildProductList(purchased, 'purchased'),
-                _buildProductList(sold, 'sold'),
-                _buildStockList(currentStock),
-              ],
+        ),
+        const SizedBox(height: 4), // Reduced space between tabs and content
+        Expanded(
+          child: IndexedStack(
+            index: _selectedProductTab,
+            children: [
+              _buildProductList(purchased, 'purchased'),
+              _buildProductList(sold, 'sold'),
+              _buildStockList(currentStock),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProductTabButton(String label, int index, IconData icon) {
+    final isSelected = _selectedProductTab == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedProductTab = index;
+          });
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4), // Increased from 5 to 8
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primary : AppColors.surface,
+            borderRadius: BorderRadius.circular(10), // Increased from 8 to 10
+            border: Border.all(
+              color: isSelected ? AppColors.primary : AppColors.border,
+              width: 1,
             ),
           ),
-        ],
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.white : AppColors.textSecondary,
+                size: 16, // Increased from 13 to 16
+              ),
+              const SizedBox(width: 6), // Increased from 3 to 6
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13, // Increased from 10 to 13
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                  fontFamily: 'Poppins',
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

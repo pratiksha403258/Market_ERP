@@ -1,501 +1,3 @@
-// import 'package:agr_market/models/buyer_model.dart';
-// import 'package:agr_market/services/buyer_service.dart';
-// import 'package:flutter/material.dart';
-
-// class AddEditBuyerScreen extends StatefulWidget {
-//   final Buyer? buyer;
-
-//   const AddEditBuyerScreen({super.key, this.buyer});
-
-//   @override
-//   State<AddEditBuyerScreen> createState() => _AddEditBuyerScreenState();
-// }
-
-// class _AddEditBuyerScreenState extends State<AddEditBuyerScreen> {
-//   final _formKey = GlobalKey<FormState>();
-//   // Use singleton instance instead of constructor
-//   final BuyerService _buyerService = BuyerService.instance;
-//   bool _loading = false;
-
-//   // Form controllers
-//   final _nameController = TextEditingController();
-//   final _emailController = TextEditingController();
-//   final _mobileController = TextEditingController();
-//   final _alternateMobileController = TextEditingController();
-//   final _addressController = TextEditingController();
-//   final _cityController = TextEditingController();
-//   final _stateController = TextEditingController();
-//   final _pincodeController = TextEditingController();
-//   final _gstController = TextEditingController();
-//   final _panController = TextEditingController();
-//   final _businessNameController = TextEditingController();
-//   final _creditLimitController = TextEditingController();
-//   final _creditDaysController = TextEditingController();
-//   final _notesController = TextEditingController();
-
-//   String _businessType = 'individual';
-//   String _defaultPaymentMode = 'cash';
-
-//   final List<String> _businessTypes = ['individual', 'company', 'partnership'];
-//   final List<String> _paymentModes = ['cash', 'bank_transfer', 'cheque', 'upi'];
-
-//   @override
-//   void initState() {
-//     super.initState();
-//     if (widget.buyer != null) {
-//       _populateForm();
-//     }
-//   }
-
-//   void _populateForm() {
-//     final buyer = widget.buyer!;
-//     _nameController.text = buyer.name;
-//     _emailController.text = buyer.email;
-//     _mobileController.text = buyer.mobile;
-//     _alternateMobileController.text = buyer.alternateMobile ?? '';
-//     _addressController.text = buyer.address;
-//     _cityController.text = buyer.city;
-//     _stateController.text = buyer.state;
-//     _pincodeController.text = buyer.pincode;
-//     _gstController.text = buyer.gstNumber ?? '';
-//     _panController.text = buyer.panNumber ?? '';
-//     _businessNameController.text = buyer.businessName;
-//     _creditLimitController.text = buyer.creditLimit.toString();
-//     _creditDaysController.text = buyer.creditDays.toString();
-//     _notesController.text = buyer.notes ?? '';
-//     _businessType = buyer.businessType;
-//     _defaultPaymentMode = buyer.defaultPaymentMode;
-//   }
-
-//   @override
-//   void dispose() {
-//     _nameController.dispose();
-//     _emailController.dispose();
-//     _mobileController.dispose();
-//     _alternateMobileController.dispose();
-//     _addressController.dispose();
-//     _cityController.dispose();
-//     _stateController.dispose();
-//     _pincodeController.dispose();
-//     _gstController.dispose();
-//     _panController.dispose();
-//     _businessNameController.dispose();
-//     _creditLimitController.dispose();
-//     _creditDaysController.dispose();
-//     _notesController.dispose();
-//     super.dispose();
-//   }
-
-//   Future<void> _submit() async {
-//     if (!_formKey.currentState!.validate()) return;
-
-//     setState(() => _loading = true);
-
-//     try {
-//       final String alternateMobile = _alternateMobileController.text.trim();
-//       final String gstNumber = _gstController.text.trim();
-//       final String panNumber = _panController.text.trim();
-//       final String notes = _notesController.text.trim();
-
-//       final Map<String, dynamic> buyerData = {
-//         'name': _nameController.text.trim(),
-//         'email': _emailController.text.trim(),
-//         'mobile': _mobileController.text.trim(),
-//         'alternateMobile': alternateMobile.isEmpty ? null : alternateMobile,
-//         'address': _addressController.text.trim(),
-//         'city': _cityController.text.trim(),
-//         'state': _stateController.text.trim(),
-//         'pincode': _pincodeController.text.trim(),
-//         'gstNumber': gstNumber.isEmpty ? null : gstNumber,
-//         'panNumber': panNumber.isEmpty ? null : panNumber,
-//         'businessName': _businessNameController.text.trim(),
-//         'businessType': _businessType,
-//         'creditLimit': double.parse(_creditLimitController.text.trim()),
-//         'creditDays': int.parse(_creditDaysController.text.trim()),
-//         'defaultPaymentMode': _defaultPaymentMode,
-//         'notes': notes.isEmpty ? null : notes,
-//       };
-
-//       BuyerResult result;
-      
-//       if (widget.buyer != null) {
-//         // Update existing buyer
-//         result = await _buyerService.updateBuyer(widget.buyer!.id, buyerData);
-//       } else {
-//         // Create new buyer
-//         result = await _buyerService.createBuyer(buyerData);
-//       }
-
-//       if (result.isSuccess && mounted) {
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           SnackBar(
-//             content: Text(widget.buyer != null ? 'Buyer updated successfully' : 'Buyer created successfully'),
-//             backgroundColor: Colors.green,
-//           ),
-//         );
-//         Navigator.pop(context, true);
-//       } else if (mounted) {
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           SnackBar(
-//             content: Text(result.message ?? 'Operation failed'),
-//             backgroundColor: Colors.red,
-//           ),
-//         );
-//       }
-//     } catch (e) {
-//       if (mounted) {
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           SnackBar(
-//             content: Text(widget.buyer != null ? 'Failed to update buyer' : 'Failed to create buyer'),
-//             backgroundColor: Colors.red,
-//           ),
-//         );
-//       }
-//     } finally {
-//       if (mounted) setState(() => _loading = false);
-//     }
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       backgroundColor: const Color(0xFFF5F7FA),
-//       appBar: AppBar(
-//         title: Text(
-//           widget.buyer != null ? 'Edit Buyer' : 'Add New Buyer',
-//           style: const TextStyle(fontWeight: FontWeight.w600),
-//         ),
-//         centerTitle: false,
-//       ),
-//       body: Stack(
-//         children: [
-//           Form(
-//             key: _formKey,
-//             child: SingleChildScrollView(
-//               padding: const EdgeInsets.all(16),
-//               child: Column(
-//                 children: [
-//                   _buildSection('Personal Information', [
-//                     _buildTextField(
-//                       controller: _nameController,
-//                       label: 'Full Name',
-//                       icon: Icons.person,
-//                       validator: (v) =>
-//                           v?.isEmpty == true ? 'Name is required' : null,
-//                     ),
-//                     const SizedBox(height: 12),
-//                     _buildTextField(
-//                       controller: _emailController,
-//                       label: 'Email Address',
-//                       icon: Icons.email,
-//                       keyboardType: TextInputType.emailAddress,
-//                       validator: (v) {
-//                         if (v?.isEmpty == true) return 'Email is required';
-//                         if (!v!.contains('@')) return 'Invalid email';
-//                         return null;
-//                       },
-//                     ),
-//                     const SizedBox(height: 12),
-//                     Row(
-//                       children: [
-//                         Expanded(
-//                           child: _buildTextField(
-//                             controller: _mobileController,
-//                             label: 'Mobile Number',
-//                             icon: Icons.phone,
-//                             keyboardType: TextInputType.phone,
-//                             validator: (v) =>
-//                                 v?.isEmpty == true ? 'Mobile is required' : null,
-//                           ),
-//                         ),
-//                         const SizedBox(width: 12),
-//                         Expanded(
-//                           child: _buildTextField(
-//                             controller: _alternateMobileController,
-//                             label: 'Alternate Mobile',
-//                             icon: Icons.phone_android,
-//                             keyboardType: TextInputType.phone,
-//                           ),
-//                         ),
-//                       ],
-//                     ),
-//                   ]),
-//                   const SizedBox(height: 20),
-//                   _buildSection('Business Details', [
-//                     _buildTextField(
-//                       controller: _businessNameController,
-//                       label: 'Business Name',
-//                       icon: Icons.business,
-//                       validator: (v) =>
-//                           v?.isEmpty == true ? 'Business name is required' : null,
-//                     ),
-//                     const SizedBox(height: 12),
-//                     _buildDropdown(
-//                       label: 'Business Type',
-//                       value: _businessType,
-//                       items: _businessTypes,
-//                       onChanged: (v) => setState(() => _businessType = v!),
-//                     ),
-//                     const SizedBox(height: 12),
-//                     Row(
-//                       children: [
-//                         Expanded(
-//                           child: _buildTextField(
-//                             controller: _gstController,
-//                             label: 'GST Number',
-//                             icon: Icons.receipt,
-//                           ),
-//                         ),
-//                         const SizedBox(width: 12),
-//                         Expanded(
-//                           child: _buildTextField(
-//                             controller: _panController,
-//                             label: 'PAN Number',
-//                             icon: Icons.credit_card,
-//                           ),
-//                         ),
-//                       ],
-//                     ),
-//                   ]),
-//                   const SizedBox(height: 20),
-//                   _buildSection('Address', [
-//                     _buildTextField(
-//                       controller: _addressController,
-//                       label: 'Street Address',
-//                       icon: Icons.location_on,
-//                       validator: (v) =>
-//                           v?.isEmpty == true ? 'Address is required' : null,
-//                     ),
-//                     const SizedBox(height: 12),
-//                     Row(
-//                       children: [
-//                         Expanded(
-//                           child: _buildTextField(
-//                             controller: _cityController,
-//                             label: 'City',
-//                             icon: Icons.location_city,
-//                             validator: (v) =>
-//                                 v?.isEmpty == true ? 'City is required' : null,
-//                           ),
-//                         ),
-//                         const SizedBox(width: 12),
-//                         Expanded(
-//                           child: _buildTextField(
-//                             controller: _stateController,
-//                             label: 'State',
-//                             icon: Icons.map,
-//                             validator: (v) =>
-//                                 v?.isEmpty == true ? 'State is required' : null,
-//                           ),
-//                         ),
-//                       ],
-//                     ),
-//                     const SizedBox(height: 12),
-//                     _buildTextField(
-//                       controller: _pincodeController,
-//                       label: 'Pincode',
-//                       icon: Icons.local_post_office,
-//                       keyboardType: TextInputType.number,
-//                       validator: (v) =>
-//                           v?.isEmpty == true ? 'Pincode is required' : null,
-//                     ),
-//                   ]),
-//                   const SizedBox(height: 20),
-//                   _buildSection('Credit Settings', [
-//                     Row(
-//                       children: [
-//                         Expanded(
-//                           child: _buildTextField(
-//                             controller: _creditLimitController,
-//                             label: 'Credit Limit (₹)',
-//                             icon: Icons.account_balance_wallet,
-//                             keyboardType: TextInputType.number,
-//                             validator: (v) {
-//                               if (v?.isEmpty == true)
-//                                 return 'Credit limit required';
-//                               if (double.tryParse(v!) == null)
-//                                 return 'Invalid number';
-//                               return null;
-//                             },
-//                           ),
-//                         ),
-//                         const SizedBox(width: 12),
-//                         Expanded(
-//                           child: _buildTextField(
-//                             controller: _creditDaysController,
-//                             label: 'Credit Days',
-//                             icon: Icons.calendar_today,
-//                             keyboardType: TextInputType.number,
-//                             validator: (v) {
-//                               if (v?.isEmpty == true) return 'Credit days required';
-//                               if (int.tryParse(v!) == null) return 'Invalid number';
-//                               return null;
-//                             },
-//                           ),
-//                         ),
-//                       ],
-//                     ),
-//                     const SizedBox(height: 12),
-//                     _buildDropdown(
-//                       label: 'Default Payment Mode',
-//                       value: _defaultPaymentMode,
-//                       items: _paymentModes,
-//                       onChanged: (v) => setState(() => _defaultPaymentMode = v!),
-//                     ),
-//                   ]),
-//                   const SizedBox(height: 20),
-//                   _buildSection('Additional Notes', [
-//                     _buildTextField(
-//                       controller: _notesController,
-//                       label: 'Notes',
-//                       icon: Icons.note,
-//                       maxLines: 3,
-//                     ),
-//                   ]),
-//                   const SizedBox(height: 80),
-//                 ],
-//               ),
-//             ),
-//           ),
-//           if (_loading)
-//             Container(
-//               color: Colors.black.withOpacity(0.5),
-//               child: const Center(
-//                 child: CircularProgressIndicator(color: Color(0xFF1B8C4E)),
-//               ),
-//             ),
-//         ],
-//       ),
-//       bottomNavigationBar: SafeArea(
-//         child: Padding(
-//           padding: const EdgeInsets.all(16),
-//           child: ElevatedButton(
-//             onPressed: _loading ? null : _submit,
-//             style: ElevatedButton.styleFrom(
-//               backgroundColor: const Color(0xFF1B8C4E),
-//               foregroundColor: Colors.white,
-//               padding: const EdgeInsets.symmetric(vertical: 14),
-//               shape: RoundedRectangleBorder(
-//                 borderRadius: BorderRadius.circular(12),
-//               ),
-//             ),
-//             child: Text(
-//               widget.buyer != null ? 'Update Buyer' : 'Create Buyer',
-//               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-//             ),
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-
-//   Widget _buildSection(String title, List<Widget> children) {
-//     return Container(
-//       decoration: BoxDecoration(
-//         color: Colors.white,
-//         borderRadius: BorderRadius.circular(16),
-//         boxShadow: [
-//           BoxShadow(
-//             color: Colors.black.withOpacity(0.05),
-//             blurRadius: 8,
-//             offset: const Offset(0, 2),
-//           ),
-//         ],
-//       ),
-//       child: Column(
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         children: [
-//           Padding(
-//             padding: const EdgeInsets.all(16),
-//             child: Text(
-//               title,
-//               style: const TextStyle(
-//                 fontSize: 16,
-//                 fontWeight: FontWeight.w600,
-//                 color: Color(0xFF1F2937),
-//               ),
-//             ),
-//           ),
-//           const Divider(height: 1, color: Color(0xFFE5E7EB)),
-//           Padding(
-//             padding: const EdgeInsets.all(16),
-//             child: Column(children: children),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-
-//   Widget _buildTextField({
-//     required TextEditingController controller,
-//     required String label,
-//     required IconData icon,
-//     TextInputType keyboardType = TextInputType.text,
-//     String? Function(String?)? validator,
-//     int maxLines = 1,
-//   }) {
-//     return TextFormField(
-//       controller: controller,
-//       decoration: InputDecoration(
-//         labelText: label,
-//         prefixIcon: Icon(icon, color: const Color(0xFF9CA3AF)),
-//         border: OutlineInputBorder(
-//           borderRadius: BorderRadius.circular(10),
-//           borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-//         ),
-//         enabledBorder: OutlineInputBorder(
-//           borderRadius: BorderRadius.circular(10),
-//           borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-//         ),
-//         focusedBorder: OutlineInputBorder(
-//           borderRadius: BorderRadius.circular(10),
-//           borderSide: const BorderSide(color: Color(0xFF1B8C4E), width: 2),
-//         ),
-//         filled: true,
-//         fillColor: Colors.white,
-//       ),
-//       keyboardType: keyboardType,
-//       validator: validator,
-//       maxLines: maxLines,
-//     );
-//   }
-
-//   Widget _buildDropdown({
-//     required String label,
-//     required String value,
-//     required List<String> items,
-//     required void Function(String?) onChanged,
-//   }) {
-//     return DropdownButtonFormField<String>(
-//       value: value,
-//       decoration: InputDecoration(
-//         labelText: label,
-//         prefixIcon: const Icon(Icons.category, color: Color(0xFF9CA3AF)),
-//         border: OutlineInputBorder(
-//           borderRadius: BorderRadius.circular(10),
-//           borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-//         ),
-//         enabledBorder: OutlineInputBorder(
-//           borderRadius: BorderRadius.circular(10),
-//           borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-//         ),
-//         focusedBorder: OutlineInputBorder(
-//           borderRadius: BorderRadius.circular(10),
-//           borderSide: const BorderSide(color: Color(0xFF1B8C4E), width: 2),
-//         ),
-//         filled: true,
-//         fillColor: Colors.white,
-//       ),
-//       items: items.map((item) {
-//         return DropdownMenuItem(
-//           value: item,
-//           child: Text(item.toUpperCase()),
-//         );
-//       }).toList(),
-//       onChanged: onChanged,
-//     );
-//   }
-// }
 
 import 'package:agr_market/models/buyer_model.dart';
 import 'package:agr_market/services/buyer_service.dart';
@@ -541,10 +43,16 @@ class _AddEditBuyerScreenState extends State<AddEditBuyerScreen>
   final _creditDaysController = TextEditingController();
   String _defaultPaymentMode = 'cash';
   final _notesController = TextEditingController();
-
-  final List<String> _businessTypes = ['individual', 'company', 'partnership'];
-  final List<String> _paymentModes = ['cash', 'bank_transfer', 'cheque', 'upi'];
-
+final List<String> _businessTypes = [
+  'individual',
+  'proprietorship',
+  'partnership',
+  'private_limited',
+  'public_limited',
+  'llp',
+  'other',
+];
+final List<String> _paymentModes = ['cash', 'upi', 'bank', 'cheque', 'credit'];
   // ── Misc ──────────────────────────────────────────────────────
   bool _saving = false;
   String? _error;
@@ -634,6 +142,31 @@ class _AddEditBuyerScreenState extends State<AddEditBuyerScreen>
       Navigator.pop(context);
     }
   }
+
+String _paymentModeLabel(String mode) {
+  const labels = {
+    'cash': 'Cash',
+    'upi': 'UPI',
+    'bank': 'Bank Transfer',
+    'cheque': 'Cheque',
+    'credit': 'Credit',
+  };
+  return labels[mode] ?? mode.toUpperCase();
+}
+
+String _businessTypeLabel(String type) {
+  const labels = {
+    'individual': 'Individual',
+    'proprietorship': 'Proprietorship',
+    'partnership': 'Partnership',
+    'private_limited': 'Private Limited',
+    'public_limited': 'Public Limited',
+    'llp': 'LLP',
+    'other': 'Other',
+  };
+  return labels[type] ?? type.toUpperCase();
+}
+
 
   String? _validateCurrent() {
     switch (_step) {
@@ -1044,7 +577,7 @@ class _AddEditBuyerScreenState extends State<AddEditBuyerScreen>
                 items: _businessTypes.map((item) {
                   return DropdownMenuItem(
                     value: item,
-                    child: Text(item.toUpperCase()),
+                  child: Text(_businessTypeLabel(item)),
                   );
                 }).toList(),
                 onChanged: (v) => setState(() => _businessType = v!),
@@ -1171,11 +704,11 @@ class _AddEditBuyerScreenState extends State<AddEditBuyerScreen>
                     color: AppColors.textPrimary,
                     fontFamily: 'Poppins'),
                 items: _paymentModes.map((item) {
-                  return DropdownMenuItem(
-                    value: item,
-                    child: Text(item.toUpperCase().replaceAll('_', ' ')),
-                  );
-                }).toList(),
+  return DropdownMenuItem(
+    value: item,
+    child: Text(_paymentModeLabel(item)),  // Use the label function
+  );
+}).toList(),
                 onChanged: (v) => setState(() => _defaultPaymentMode = v!),
               ),
             ),

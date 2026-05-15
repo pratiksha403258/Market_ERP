@@ -1,9 +1,10 @@
-
 import 'package:agr_market/expense/expense_list_screen.dart';
 import 'package:agr_market/purchase/purchase_list_screen.dart';
 import 'package:agr_market/warehouse/warehouse_list_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/constants/colors.dart';
+import '../../providers/language_provider.dart';  
 import '../dashboard/screens/dashboard_screen.dart';
 import '../farmers/screens/farmer_list_screen.dart';
 
@@ -18,13 +19,17 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
 
-  final List<_NavItem> _items = const [
-    _NavItem(icon: Icons.home_rounded, label: 'Home'),
-    _NavItem(icon: Icons.people_rounded, label: 'Farmers'),
-    _NavItem(icon: Icons.add_box_rounded, label: 'Purchase'),
-    _NavItem(icon: Icons.receipt_rounded, label: 'Expense'),
-    _NavItem(icon: Icons.warehouse_rounded, label: 'Warehouse'),
-  ];
+  // Remove the static _NavItem list - will create dynamically with translations
+  List<_NavItem> _getNavItems(BuildContext context) {
+    final lang = Provider.of<LanguageProvider>(context, listen: false);
+    return [
+      _NavItem(icon: Icons.home_rounded, label: lang.t('nav_home')),
+      _NavItem(icon: Icons.people_rounded, label: lang.t('nav_farmers')),
+      _NavItem(icon: Icons.add_box_rounded, label: lang.t('nav_purchase')),
+      _NavItem(icon: Icons.receipt_rounded, label: lang.t('nav_expense')),
+      _NavItem(icon: Icons.warehouse_rounded, label: lang.t('nav_warehouse')),
+    ];
+  }
 
   Widget _buildScreen() {
     switch (_currentIndex) {
@@ -45,12 +50,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final items = _getNavItems(context);
+    
     return Scaffold(
       backgroundColor: AppColors.background,
       body: _buildScreen(),
       bottomNavigationBar: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4), // Reduced horizontal padding
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(28),
@@ -69,7 +76,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly, 
-          children: List.generate(_items.length, (i) {
+          children: List.generate(items.length, (i) {
             final isSelected = _currentIndex == i;
             return Expanded(
               child: GestureDetector(
@@ -90,7 +97,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        _items[i].icon,
+                        items[i].icon,
                         color: isSelected
                             ? AppColors.primary
                             : AppColors.textHint,
@@ -109,7 +116,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                               ? AppColors.primary
                               : AppColors.textHint,
                         ),
-                        child: Text(_items[i].label),
+                        child: Text(items[i].label),
                       ),
                     ],
                   ),

@@ -305,6 +305,27 @@ class LanguageProvider extends ChangeNotifier {
 'share_whatsapp': 'Share',
 'purchase_saved': 'Purchase Saved!',
 'purchase_saved_message': 'Purchase saved successfully!',
+
+ 'ledger_farmer': 'Farmer Ledger',
+    'operator_ledger': 'Operator Ledger',
+    'search_hint': 'Search by name or mobile...',
+
+'nav_home': 'Home',
+'nav_farmers': 'Farmers',
+'nav_purchase': 'Purchase',
+'nav_expense': 'Expense',
+'nav_warehouse': 'Warehouse',
+'buyers': 'Buyers',
+'today':'today',
+'total sales':'Total Sales',
+'net loss':'Net Loss',
+'margin':'Margin',
+'buyers_tab': 'Buyers',
+'search_hint_buyer_ledger': 'Search buyer by name or mobile...',
+'no_buyers_found': 'No buyers found',
+'no_matching_buyers': 'No buyers matching',
+'advance_short': 'Adv',
+
   };
 
   // ─────────────────────────────────────────────────────────
@@ -549,5 +570,25 @@ class LanguageProvider extends ChangeNotifier {
 'share_whatsapp': 'शेअर करा',
 'purchase_saved': 'खरेदी जतन केली!',
 'purchase_saved_message': 'खरेदी यशस्वीरित्या जतन केली!',
+
+'ledger_farmer': 'शेतकरी खातेवही',
+    'operator_ledger': 'ऑपरेटर खातेवही',
+    'search_hint': 'नाव किंवा मोबाइलने शोधा...',
+
+'nav_home': 'मुख्यपृष्ठ',
+'nav_farmers': 'शेतकरी',
+'nav_purchase': 'खरेदी',
+'nav_expense': 'खर्च',
+'nav_warehouse': 'गोदाम',
+'buyers': 'खरेदीदार', 
+'total sales':'एकूण विक्री',
+'net loss':'निव्वळ तोटा',
+'margin':'नफा मार्जिन',
+'buyers_tab': 'खरेदीदार',
+'search_hint_buyer_ledger': 'नाव किंवा मोबाईलने खरेदीदार शोधा...',
+'no_buyers_found': 'खरेदीदार सापडले नाहीत',
+'no_matching_buyers': 'जुळणारे खरेदीदार नाहीत',
+'advance_short': 'अॅडव्हान्स',
+
   };
 }

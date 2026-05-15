@@ -402,6 +402,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/colors.dart';
 import '../../providers/auth_provider.dart';
 
@@ -482,18 +483,24 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _checkSessionAndNavigate() async {
-    // Wait for splash animation to finish
     await Future.delayed(const Duration(milliseconds: 2200));
     if (!mounted) return;
 
     final auth = context.read<AuthProvider>();
     final hasSession = await auth.checkSession();
+
+    // ✅ NEW: check language from local storage
+    final prefs = await SharedPreferences.getInstance();
+    final isLangSelected = prefs.getBool('language_selected') ?? false;
+
     if (!mounted) return;
 
-    if (hasSession) {
-      Navigator.pushReplacementNamed(context, '/language');
-    } else {
+    if (!hasSession) {
       Navigator.pushReplacementNamed(context, '/login');
+    } else if (!isLangSelected) {
+      Navigator.pushReplacementNamed(context, '/language'); // first time only
+    } else {
+      Navigator.pushReplacementNamed(context, '/home'); // ✅ skip language
     }
   }
 

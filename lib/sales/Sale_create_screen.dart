@@ -5,6 +5,71 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/colors.dart';
 import '../../../services/sale_service.dart';
+import '../../../services/buyer_service.dart';
+import '../../../models/buyer_model.dart';
+import '../../../services/constant_service.dart';
+import 'package:dio/dio.dart';
+import '../../../services/dio_client.dart';
+
+// ── Dropdown Buyer Model ──────────────────────────────────────
+class DropdownBuyer {
+  final String id;
+  final String name;
+  final String displayName;
+  final String mobile;
+  final String city;
+  final String businessName;
+  final String fullAddress;
+
+  const DropdownBuyer({
+    required this.id,
+    required this.name,
+    required this.displayName,
+    required this.mobile,
+    required this.city,
+    required this.businessName,
+    required this.fullAddress,
+  });
+
+  factory DropdownBuyer.fromJson(Map<String, dynamic> j) => DropdownBuyer(
+        id: j['_id']?.toString() ?? j['id']?.toString() ?? '',
+        name: j['name']?.toString() ?? '',
+        displayName: j['displayName']?.toString() ?? j['name']?.toString() ?? '',
+        mobile: j['mobile']?.toString() ?? '',
+        city: j['city']?.toString() ?? '',
+        businessName: j['businessName']?.toString() ?? '',
+        fullAddress: j['fullAddress']?.toString() ?? '',
+      );
+}
+
+// ── Buyer Dropdown Service ────────────────────────────────────
+class _BuyerDropdownService {
+  static final _dio = DioClient.instance.dio;
+
+  static Future<List<DropdownBuyer>> fetch({String search = '', int limit = 100}) async {
+    try {
+      final params = <String, dynamic>{'limit': limit};
+      if (search.isNotEmpty) params['search'] = search;
+
+      final res = await _dio.get(
+        '/buyers/dropdown',
+        queryParameters: params,
+        options: Options(validateStatus: (_) => true),
+      );
+
+      if (res.statusCode == 200) {
+        final body = res.data as Map<String, dynamic>;
+        if (body['success'] == true) {
+          final list = body['data'] as List? ?? [];
+          return list
+              .map((e) => DropdownBuyer.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+}
 
 class SaleCreateScreen extends StatefulWidget {
   const SaleCreateScreen({super.key});
@@ -20,14 +85,26 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
   static const _stepLabels = ['Buyer', 'Product', 'Deductions', 'Review'];
 
   // ── Step 0: Buyer ─────────────────────────────────────────────
+  // Dropdown state
+  List<DropdownBuyer> _allBuyers = [];
+  List<DropdownBuyer> _filteredBuyers = [];
+  bool _buyersLoading = false;
+  bool _showDropdown = false;
+  DropdownBuyer? _selectedBuyer;
+  static const int _initialVisibleCount = 5;
+  int _visibleCount = _initialVisibleCount;
+  final _buyerSearchCtrl = TextEditingController();
+  final _buyerSearchFocus = FocusNode();
+
+  // Manual fields (auto-filled when buyer selected, or typed manually)
   final _buyerNameCtrl = TextEditingController();
   final _buyerMobileCtrl = TextEditingController();
   final _buyerGstCtrl = TextEditingController();
   final _buyerAddressCtrl = TextEditingController();
 
-  // ── Step 1: Product (new kg-based pricing) ────────────────────
+  // ── Step 1: Product ───────────────────────────────────────────
   final _productNameCtrl = TextEditingController();
-  String _pricingType = 'kg'; // kg | quintal | fixed
+  String _pricingType = 'kg';
   final _bagsCtrl = TextEditingController();
   final _weightPerBagCtrl = TextEditingController();
   final _qualityDeductionCtrl = TextEditingController();
@@ -38,7 +115,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
   final _transportCtrl = TextEditingController();
   final _labourCtrl = TextEditingController();
   final _commissionCtrl = TextEditingController();
-  String _commissionType = 'fixed'; // fixed | percent
+  String _commissionType = 'fixed';
   final _storageCtrl = TextEditingController();
   final _advanceAdjustedCtrl = TextEditingController();
   final _otherCtrl = TextEditingController();
@@ -46,34 +123,28 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
 
   // ── Computed ──────────────────────────────────────────────────
   int get _bags => int.tryParse(_bagsCtrl.text.trim()) ?? 0;
-  double get _weightPerBag =>
-      double.tryParse(_weightPerBagCtrl.text.trim()) ?? 0;
-  double get _qualityDeduction =>
-      double.tryParse(_qualityDeductionCtrl.text.trim()) ?? 0;
+  double get _weightPerBag => double.tryParse(_weightPerBagCtrl.text.trim()) ?? 0;
+  double get _qualityDeduction => double.tryParse(_qualityDeductionCtrl.text.trim()) ?? 0;
   double get _rate => double.tryParse(_rateCtrl.text.trim()) ?? 0;
   double get _actualQty => _bags * _weightPerBag;
   double get _netQty => _actualQty - _qualityDeduction;
   double get _grossTotal => _netQty * _rate;
 
-  double get _transport =>
-      double.tryParse(_transportCtrl.text.trim()) ?? 0;
+  double get _transport => double.tryParse(_transportCtrl.text.trim()) ?? 0;
   double get _labour => double.tryParse(_labourCtrl.text.trim()) ?? 0;
-  double get _commission =>
-      double.tryParse(_commissionCtrl.text.trim()) ?? 0;
+  double get _commission => double.tryParse(_commissionCtrl.text.trim()) ?? 0;
   double get _storage => double.tryParse(_storageCtrl.text.trim()) ?? 0;
-  double get _advanceAdjusted =>
-      double.tryParse(_advanceAdjustedCtrl.text.trim()) ?? 0;
+  double get _advanceAdjusted => double.tryParse(_advanceAdjustedCtrl.text.trim()) ?? 0;
   double get _other => double.tryParse(_otherCtrl.text.trim()) ?? 0;
 
   double get _totalDeductions {
     double commission = _commission;
-    if (_commissionType == 'percent') {
-      commission = (_grossTotal * _commission) / 100;
-    }
+    if (_commissionType == 'percent') commission = (_grossTotal * _commission) / 100;
     return _transport + _labour + commission + _storage + _advanceAdjusted + _other;
   }
 
-  double get _finalReceivable => (_grossTotal - _totalDeductions).clamp(0, double.infinity);
+  double get _finalReceivable =>
+      (_grossTotal - _totalDeductions).clamp(0, double.infinity);
 
   // ── Misc ──────────────────────────────────────────────────────
   bool _saving = false;
@@ -99,6 +170,73 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     ]) {
       c.addListener(_recalc);
     }
+
+    _buyerSearchCtrl.addListener(_onBuyerSearchChanged);
+    _buyerSearchFocus.addListener(() {
+      if (_buyerSearchFocus.hasFocus && _allBuyers.isNotEmpty) {
+        setState(() => _showDropdown = true);
+      }
+    });
+
+    _loadBuyers();
+  }
+
+  // ── Buyer Dropdown Logic ──────────────────────────────────────
+  Future<void> _loadBuyers({String search = ''}) async {
+    setState(() => _buyersLoading = true);
+    final buyers = await _BuyerDropdownService.fetch(search: search);
+    if (mounted) {
+      setState(() {
+        _allBuyers = buyers;
+        _filteredBuyers = buyers;
+        _visibleCount = _initialVisibleCount;
+        _buyersLoading = false;
+      });
+    }
+  }
+
+  void _onBuyerSearchChanged() {
+    final query = _buyerSearchCtrl.text.trim().toLowerCase();
+    setState(() {
+      _showDropdown = true;
+      _visibleCount = _initialVisibleCount;
+      if (query.isEmpty) {
+        _filteredBuyers = _allBuyers;
+      } else {
+        _filteredBuyers = _allBuyers.where((b) {
+          return b.displayName.toLowerCase().contains(query) ||
+              b.name.toLowerCase().contains(query) ||
+              b.mobile.contains(query) ||
+              b.businessName.toLowerCase().contains(query);
+        }).toList();
+      }
+    });
+  }
+
+  void _selectBuyer(DropdownBuyer buyer) {
+    setState(() {
+      _selectedBuyer = buyer;
+      _showDropdown = false;
+      _buyerSearchCtrl.text = buyer.displayName;
+      // Auto-fill fields
+      _buyerNameCtrl.text = buyer.name;
+      _buyerMobileCtrl.text = buyer.mobile;
+      _buyerAddressCtrl.text = buyer.fullAddress;
+      _buyerGstCtrl.clear();
+    });
+    _buyerSearchFocus.unfocus();
+  }
+
+  void _clearBuyerSelection() {
+    setState(() {
+      _selectedBuyer = null;
+      _buyerSearchCtrl.clear();
+      _buyerNameCtrl.clear();
+      _buyerMobileCtrl.clear();
+      _buyerAddressCtrl.clear();
+      _buyerGstCtrl.clear();
+      _showDropdown = false;
+    });
   }
 
   void _recalc() => setState(() {});
@@ -106,6 +244,8 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
   @override
   void dispose() {
     _animCtrl.dispose();
+    _buyerSearchCtrl.dispose();
+    _buyerSearchFocus.dispose();
     for (final c in [
       _buyerNameCtrl, _buyerMobileCtrl, _buyerGstCtrl, _buyerAddressCtrl,
       _productNameCtrl, _bagsCtrl, _weightPerBagCtrl, _qualityDeductionCtrl,
@@ -163,7 +303,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
   String? _validateCurrent() {
     switch (_step) {
       case 0:
-        if (_buyerNameCtrl.text.trim().isEmpty) return 'Enter buyer name';
+        if (_buyerNameCtrl.text.trim().isEmpty) return 'Select or enter a buyer name';
         if (_buyerNameCtrl.text.trim().length < 2) {
           return 'Buyer name must be at least 2 characters';
         }
@@ -181,7 +321,6 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
           return 'Quality deduction cannot exceed actual quantity';
         return null;
       case 2:
-        // Deductions are all optional
         return null;
       default:
         return null;
@@ -195,7 +334,6 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
       _error = null;
     });
 
-    // Build lines array as per new API
     final lines = [
       {
         'productName': _productNameCtrl.text.trim(),
@@ -210,7 +348,6 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
       }
     ];
 
-    // Build deductions object
     final deductions = <String, dynamic>{
       if (_transport > 0) 'transport': _transport,
       if (_labour > 0) 'labour': _labour,
@@ -223,6 +360,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
 
     final payload = <String, dynamic>{
       'buyerName': _buyerNameCtrl.text.trim(),
+      if (_selectedBuyer != null) 'buyerId': _selectedBuyer!.id,
       if (_buyerMobileCtrl.text.trim().isNotEmpty)
         'buyerMobile': _buyerMobileCtrl.text.trim(),
       if (_buyerGstCtrl.text.trim().isNotEmpty)
@@ -267,194 +405,204 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
   // ── BUILD ─────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Stack(children: [
-        // Gradient header
-        Positioned(
-          top: 0, left: 0, right: 0,
-          child: Container(
-            height: MediaQuery.of(context).size.height * 0.30,
-            decoration: const BoxDecoration(
-              gradient: AppColors.heroGradient,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(40),
-                bottomRight: Radius.circular(40),
+    return GestureDetector(
+      onTap: () {
+        if (_showDropdown) setState(() => _showDropdown = false);
+        FocusScope.of(context).unfocus();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: Stack(children: [
+          // Gradient header
+          Positioned(
+            top: 0, left: 0, right: 0,
+            child: Container(
+              height: MediaQuery.of(context).size.height * 0.30,
+              decoration: const BoxDecoration(
+                gradient: AppColors.heroGradient,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(40),
+                  bottomRight: Radius.circular(40),
+                ),
+              ),
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.arrow_back_rounded,
+                                color: Colors.white, size: 20),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Text('New Sale',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: 'Poppins')),
+                        ),
+                      ]),
+                      const SizedBox(height: 16),
+                      _buildStepIndicator(),
+                    ],
+                  ),
+                ),
               ),
             ),
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(Icons.arrow_back_rounded,
-                              color: Colors.white, size: 20),
+          ),
+
+          // Scrollable body
+          Positioned.fill(
+            child: SingleChildScrollView(
+              child: Column(children: [
+                SizedBox(height: MediaQuery.of(context).size.height * 0.25),
+                FadeTransition(
+                  opacity: _fadeAnim,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [BoxShadow(
+                        color: AppColors.primary.withOpacity(0.10),
+                        blurRadius: 30,
+                        offset: const Offset(0, 8),
+                      )],
+                    ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 280),
+                      child: _buildCurrentStep(),
+                    ),
+                  ),
+                ),
+
+                // Error
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.errorSurface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: AppColors.error.withOpacity(0.3)),
+                      ),
+                      child: Row(children: [
+                        const Icon(Icons.error_outline_rounded,
+                            color: AppColors.error, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(_error!,
+                              style: const TextStyle(
+                                  color: AppColors.error,
+                                  fontSize: 12,
+                                  fontFamily: 'Poppins')),
+                        ),
+                      ]),
+                    ),
+                  ),
+
+                const SizedBox(height: 20),
+
+                // Continue / Create Sale button
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: _saving ? null : _next,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor:
+                            AppColors.primary.withOpacity(0.5),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 22, height: 22,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2.5))
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  _step < 3 ? 'Continue' : 'Create Sale',
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'Poppins'),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  _step < 3
+                                      ? Icons.arrow_forward_rounded
+                                      : Icons.storefront_rounded,
+                                  size: 18),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // View Sales List button
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed: _goToSalesList,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(
+                            color: AppColors.primary, width: 1.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      const SizedBox(width: 14),
-                      const Expanded(
-                        child: Text('New Sale',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: 'Poppins')),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.receipt_long_rounded, size: 18),
+                          SizedBox(width: 8),
+                          Text('View Sales List',
+                              style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: 'Poppins')),
+                        ],
                       ),
-                    ]),
-                    const SizedBox(height: 16),
-                    _buildStepIndicator(),
-                  ],
+                    ),
+                  ),
                 ),
-              ),
+
+                const SizedBox(height: 40),
+              ]),
             ),
           ),
-        ),
-
-        // Scrollable body
-        Positioned.fill(
-          child: SingleChildScrollView(
-            child: Column(children: [
-              SizedBox(height: MediaQuery.of(context).size.height * 0.25),
-              FadeTransition(
-                opacity: _fadeAnim,
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [BoxShadow(
-                      color: AppColors.primary.withOpacity(0.10),
-                      blurRadius: 30,
-                      offset: const Offset(0, 8),
-                    )],
-                  ),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 280),
-                    child: _buildCurrentStep(),
-                  ),
-                ),
-              ),
-
-              // Error
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.errorSurface,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.error.withOpacity(0.3)),
-                    ),
-                    child: Row(children: [
-                      const Icon(Icons.error_outline_rounded,
-                          color: AppColors.error, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(_error!,
-                            style: const TextStyle(
-                                color: AppColors.error,
-                                fontSize: 12,
-                                fontFamily: 'Poppins')),
-                      ),
-                    ]),
-                  ),
-                ),
-
-              const SizedBox(height: 20),
-
-              // Continue / Create Sale button
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: _saving ? null : _next,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                    ),
-                    child: _saving
-                        ? const SizedBox(
-                            width: 22, height: 22,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2.5))
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                _step < 3 ? 'Continue' : 'Create Sale',
-                                style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                    fontFamily: 'Poppins'),
-                              ),
-                              const SizedBox(width: 8),
-                              Icon(
-                                _step < 3
-                                    ? Icons.arrow_forward_rounded
-                                    : Icons.storefront_rounded,
-                                size: 18),
-                            ],
-                          ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // View Sales List button
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: OutlinedButton(
-                    onPressed: _goToSalesList,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      side: BorderSide(color: AppColors.primary, width: 1.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.receipt_long_rounded, size: 18),
-                        SizedBox(width: 8),
-                        Text('View Sales List',
-                            style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                fontFamily: 'Poppins')),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 40),
-            ]),
-          ),
-        ),
-      ]),
+        ]),
+      ),
     );
   }
 
@@ -468,32 +616,35 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
           child: Row(children: [
             Expanded(
               child: Column(children: [
-                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    width: active ? 24 : 20,
-                    height: active ? 24 : 20,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: done || active
-                          ? Colors.white
-                          : Colors.white.withOpacity(0.35),
-                    ),
-                    child: Center(
-                      child: done
-                          ? const Icon(Icons.check_rounded,
-                              color: AppColors.primary, size: 13)
-                          : Text('${i + 1}',
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  fontFamily: 'Poppins',
-                                  fontWeight: FontWeight.w600,
-                                  color: active
-                                      ? AppColors.primary
-                                      : Colors.white.withOpacity(0.6))),
-                    ),
-                  ),
-                ]),
+                Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        width: active ? 24 : 20,
+                        height: active ? 24 : 20,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: done || active
+                              ? Colors.white
+                              : Colors.white.withOpacity(0.35),
+                        ),
+                        child: Center(
+                          child: done
+                              ? const Icon(Icons.check_rounded,
+                                  color: AppColors.primary, size: 13)
+                              : Text('${i + 1}',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      fontFamily: 'Poppins',
+                                      fontWeight: FontWeight.w600,
+                                      color: active
+                                          ? AppColors.primary
+                                          : Colors.white
+                                              .withOpacity(0.6))),
+                        ),
+                      ),
+                    ]),
                 const SizedBox(height: 4),
                 Text(_stepLabels[i],
                     style: TextStyle(
@@ -506,7 +657,10 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
               ]),
             ),
             if (i < _stepLabels.length - 1)
-              Container(width: 20, height: 1, color: Colors.white.withOpacity(0.35)),
+              Container(
+                  width: 20,
+                  height: 1,
+                  color: Colors.white.withOpacity(0.35)),
           ]),
         );
       }),
@@ -515,22 +669,260 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
 
   Widget _buildCurrentStep() {
     switch (_step) {
-      case 0: return _buildStep0Buyer();
-      case 1: return _buildStep1Product();
-      case 2: return _buildStep2Deductions();
-      case 3: return _buildStep3Review();
-      default: return const SizedBox.shrink();
+      case 0:
+        return _buildStep0Buyer();
+      case 1:
+        return _buildStep1Product();
+      case 2:
+        return _buildStep2Deductions();
+      case 3:
+        return _buildStep3Review();
+      default:
+        return const SizedBox.shrink();
     }
   }
 
   // ── STEP 0 — Buyer Info ───────────────────────────────────────
   Widget _buildStep0Buyer() {
+    final visible = _filteredBuyers.take(_visibleCount).toList();
+    final hasMore = _filteredBuyers.length > _visibleCount;
+
     return Column(
       key: const ValueKey('s0'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _stepHeader('Buyer Details', 'Who are you selling to?'),
+        _stepHeader('Buyer Details', 'Search or select a buyer'),
         const SizedBox(height: 20),
+
+        // ── Buyer Search / Dropdown ──────────────────────────────
+        const Text('Buyer *',
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+                fontFamily: 'Poppins')),
+        const SizedBox(height: 4),
+
+        // Search field
+        TextFormField(
+          controller: _buyerSearchCtrl,
+          focusNode: _buyerSearchFocus,
+          style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textPrimary,
+              fontFamily: 'Poppins'),
+          decoration: InputDecoration(
+            hintText: 'Search buyer by name or mobile…',
+            hintStyle:
+                const TextStyle(color: AppColors.textHint, fontSize: 13),
+            prefixIcon: const Icon(Icons.search_rounded,
+                color: AppColors.textHint, size: 18),
+            suffixIcon: _selectedBuyer != null
+                ? GestureDetector(
+                    onTap: _clearBuyerSelection,
+                    child: const Icon(Icons.close_rounded,
+                        color: AppColors.textHint, size: 18),
+                  )
+                : _buyersLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary),
+                        ),
+                      )
+                    : null,
+            filled: true,
+            fillColor: AppColors.surfaceVariant,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide:
+                    const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide:
+                    const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(
+                    color: AppColors.primary, width: 1.5)),
+          ),
+          onTap: () => setState(() => _showDropdown = true),
+          onChanged: (_) => setState(() => _showDropdown = true),
+        ),
+
+        // ── Dropdown List ────────────────────────────────────────
+        if (_showDropdown) ...[
+          const SizedBox(height: 4),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: _buyersLoading && _allBuyers.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.primary),
+                    ),
+                  )
+                : visible.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(children: [
+                          const Icon(Icons.search_off_rounded,
+                              color: AppColors.textHint, size: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            _buyerSearchCtrl.text.isEmpty
+                                ? 'No buyers found'
+                                : 'No match for "${_buyerSearchCtrl.text}"',
+                            style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                                fontFamily: 'Poppins'),
+                          ),
+                        ]),
+                      )
+                    : Column(
+                        children: [
+                          ...visible.map((b) => _buildBuyerTile(b)),
+                          // Show More / Show Less
+                          if (hasMore || _visibleCount > _initialVisibleCount)
+                            InkWell(
+                              onTap: () {
+                                setState(() {
+                                  if (hasMore) {
+                                    _visibleCount += _initialVisibleCount;
+                                  } else {
+                                    _visibleCount = _initialVisibleCount;
+                                  }
+                                });
+                              },
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 10, horizontal: 14),
+                                decoration: const BoxDecoration(
+                                  border: Border(
+                                      top: BorderSide(
+                                          color: AppColors.divider)),
+                                ),
+                                child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        hasMore
+                                            ? Icons.expand_more_rounded
+                                            : Icons
+                                                .expand_less_rounded,
+                                        size: 16,
+                                        color: AppColors.primary,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        hasMore
+                                            ? 'Show ${(_filteredBuyers.length - _visibleCount).clamp(0, _initialVisibleCount)} more'
+                                            : 'Show less',
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.w600,
+                                            fontFamily: 'Poppins'),
+                                      ),
+                                    ]),
+                              ),
+                            ),
+                        ],
+                      ),
+          ),
+        ],
+
+        // ── Selected buyer chip ──────────────────────────────────
+        if (_selectedBuyer != null && !_showDropdown) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+            ),
+            child: Row(children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.person_rounded,
+                    color: Colors.white, size: 16),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_selectedBuyer!.displayName,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primaryDark,
+                              fontFamily: 'Poppins')),
+                      if (_selectedBuyer!.mobile.isNotEmpty)
+                        Text(_selectedBuyer!.mobile,
+                            style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                                fontFamily: 'Poppins')),
+                    ]),
+              ),
+              const Icon(Icons.check_circle_rounded,
+                  color: AppColors.success, size: 18),
+            ]),
+          ),
+        ],
+
+        const SizedBox(height: 16),
+
+        // ── Divider with "or enter manually" ────────────────────
+        Row(children: [
+          const Expanded(child: Divider(color: AppColors.divider)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              _selectedBuyer != null
+                  ? 'Auto-filled details'
+                  : 'Or enter manually',
+              style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  fontFamily: 'Poppins'),
+            ),
+          ),
+          const Expanded(child: Divider(color: AppColors.divider)),
+        ]),
+
+        const SizedBox(height: 14),
+
+        // ── Manual / Auto-filled fields ──────────────────────────
         _field('Buyer Name *', _buyerNameCtrl,
             hint: 'e.g. Ramesh Trading Co.',
             icon: Icons.person_outline_rounded,
@@ -555,7 +947,82 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     );
   }
 
-  // ── STEP 1 — Product (kg-based pricing) ──────────────────────
+  Widget _buildBuyerTile(DropdownBuyer buyer) {
+    final isSelected = _selectedBuyer?.id == buyer.id;
+    return InkWell(
+      onTap: () => _selectBuyer(buyer),
+      borderRadius: BorderRadius.circular(0),
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primarySurface
+              : Colors.transparent,
+          border: const Border(
+              bottom: BorderSide(color: AppColors.divider, width: 0.5)),
+        ),
+        child: Row(children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppColors.primary
+                  : AppColors.surfaceVariant,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Center(
+              child: Text(
+                buyer.name.isNotEmpty
+                    ? buyer.name[0].toUpperCase()
+                    : '?',
+                style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: isSelected
+                        ? Colors.white
+                        : AppColors.textSecondary),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(buyer.displayName,
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected
+                              ? AppColors.primaryDark
+                              : AppColors.textPrimary,
+                          fontFamily: 'Poppins')),
+                  if (buyer.mobile.isNotEmpty || buyer.city.isNotEmpty)
+                    Text(
+                      [
+                        if (buyer.mobile.isNotEmpty) buyer.mobile,
+                        if (buyer.city.isNotEmpty) buyer.city,
+                      ].join(' · '),
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                          fontFamily: 'Poppins'),
+                    ),
+                ]),
+          ),
+          if (isSelected)
+            const Icon(Icons.check_rounded,
+                color: AppColors.primary, size: 16),
+        ]),
+      ),
+    );
+  }
+
+  // ── STEP 1 — Product ──────────────────────────────────────────
   Widget _buildStep1Product() {
     return Column(
       key: const ValueKey('s1'),
@@ -594,7 +1061,8 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                     duration: const Duration(milliseconds: 180),
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      color: sel ? AppColors.primary : Colors.transparent,
+                      color:
+                          sel ? AppColors.primary : Colors.transparent,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(t.toUpperCase(),
@@ -603,7 +1071,9 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                             fontSize: 11,
                             fontFamily: 'Poppins',
                             fontWeight: FontWeight.w600,
-                            color: sel ? Colors.white : AppColors.textSecondary)),
+                            color: sel
+                                ? Colors.white
+                                : AppColors.textSecondary)),
                   ),
                 ),
               );
@@ -613,7 +1083,6 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
 
         const SizedBox(height: 14),
 
-        // Bags + Weight per bag
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
             child: _field('Bags *', _bagsCtrl,
@@ -624,31 +1093,38 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: _field('Weight/Bag (${_pricingType == 'quintal' ? 'qtl' : 'kg'}) *',
+            child: _field(
+                'Weight/Bag (${_pricingType == 'quintal' ? 'qtl' : 'kg'}) *',
                 _weightPerBagCtrl,
                 hint: '50',
                 icon: Icons.scale_outlined,
                 inputType: TextInputType.number,
-                formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+                formatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+                ]),
           ),
         ]),
 
         const SizedBox(height: 12),
 
-        // Actual qty (auto-computed, read-only display)
         if (_actualQty > 0)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: AppColors.primarySurface,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.border),
             ),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            child:
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               const Text('Total Weight',
                   style: TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary, fontFamily: 'Poppins')),
-              Text('${_actualQty.toStringAsFixed(1)} ${_pricingType == 'quintal' ? 'qtl' : 'kg'}',
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                      fontFamily: 'Poppins')),
+              Text(
+                  '${_actualQty.toStringAsFixed(1)} ${_pricingType == 'quintal' ? 'qtl' : 'kg'}',
                   style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -659,27 +1135,33 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
 
         const SizedBox(height: 12),
 
-        _field('Quality Deduction (${_pricingType == 'quintal' ? 'qtl' : 'kg'})',
+        _field(
+            'Quality Deduction (${_pricingType == 'quintal' ? 'qtl' : 'kg'})',
             _qualityDeductionCtrl,
             hint: '0',
             icon: Icons.remove_circle_outline,
             inputType: TextInputType.number,
-            formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+            formatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+            ]),
 
         const SizedBox(height: 12),
 
-        _field('Rate per ${_pricingType == 'quintal' ? 'qtl' : 'kg'} (₹) *', _rateCtrl,
+        _field(
+            'Rate per ${_pricingType == 'quintal' ? 'qtl' : 'kg'} (₹) *',
+            _rateCtrl,
             hint: '2000',
             icon: Icons.currency_rupee_rounded,
             inputType: TextInputType.number,
-            formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+            formatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+            ]),
 
         const SizedBox(height: 12),
 
         _multiLineField('Product Notes (optional)', _productNotesCtrl,
             hint: 'e.g. Premium quality...'),
 
-        // Live gross total
         if (_grossTotal > 0) ...[
           const SizedBox(height: 16),
           Container(
@@ -691,11 +1173,18 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
             child: Column(children: [
               _calcRow('Bags × Weight/Bag', _actualQty, suffix: ' kg'),
               if (_qualityDeduction > 0)
-                _calcRow('Quality Deduction', _qualityDeduction, suffix: ' kg', negative: true),
-              _calcRow('Net Qty', _netQty, suffix: ' ${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
-              _calcRow('Rate', _rate, prefix: '₹', suffix: '/${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
+                _calcRow('Quality Deduction', _qualityDeduction,
+                    suffix: ' kg', negative: true),
+              _calcRow('Net Qty', _netQty,
+                  suffix:
+                      ' ${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
+              _calcRow('Rate', _rate,
+                  prefix: '₹',
+                  suffix:
+                      '/${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
               const Divider(color: Colors.white24, height: 16),
-              _calcRow('Gross Total', _grossTotal, large: true, prefix: '₹'),
+              _calcRow('Gross Total', _grossTotal,
+                  large: true, prefix: '₹'),
             ]),
           ),
         ],
@@ -704,14 +1193,18 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
   }
 
   Widget _calcRow(String label, double value,
-      {bool large = false, String prefix = '', String suffix = '', bool negative = false}) {
+      {bool large = false,
+      String prefix = '',
+      String suffix = '',
+      bool negative = false}) {
     return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
       Text(label,
           style: TextStyle(
               color: Colors.white70,
               fontSize: large ? 13 : 12,
               fontFamily: 'Poppins')),
-      Text('${negative ? '-' : ''}$prefix${value.toStringAsFixed(value % 1 == 0 ? 0 : 2)}$suffix',
+      Text(
+          '${negative ? '-' : ''}$prefix${value.toStringAsFixed(value % 1 == 0 ? 0 : 2)}$suffix',
           style: TextStyle(
               color: Colors.white,
               fontSize: large ? 18 : 13,
@@ -729,15 +1222,16 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
         _stepHeader('Deductions', 'Enter charges & adjustments'),
         const SizedBox(height: 16),
 
-        // Gross total display
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: AppColors.primarySurface,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          child:
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             const Text('Gross Total',
                 style: TextStyle(
                     color: AppColors.textSecondary,
@@ -754,24 +1248,32 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
 
         const SizedBox(height: 14),
         _field('Transport (₹)', _transportCtrl,
-            hint: '0', icon: Icons.local_shipping_outlined,
+            hint: '0',
+            icon: Icons.local_shipping_outlined,
             inputType: TextInputType.number,
-            formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+            formatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+            ]),
         const SizedBox(height: 10),
         _field('Labour (₹)', _labourCtrl,
-            hint: '0', icon: Icons.people_outline,
+            hint: '0',
+            icon: Icons.people_outline,
             inputType: TextInputType.number,
-            formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+            formatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+            ]),
         const SizedBox(height: 10),
 
-        // Commission row with type toggle
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Expanded(
             flex: 3,
             child: _field('Commission', _commissionCtrl,
-                hint: '0', icon: Icons.percent_outlined,
+                hint: '0',
+                icon: Icons.percent_outlined,
                 inputType: TextInputType.number,
-                formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+                formatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+                ]),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -795,10 +1297,18 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                   ),
                   child: Row(
                     children: [
-                      Expanded(child: _miniToggle('Fixed', _commissionType == 'fixed',
-                          () => setState(() => _commissionType = 'fixed'))),
-                      Expanded(child: _miniToggle('%', _commissionType == 'percent',
-                          () => setState(() => _commissionType = 'percent'))),
+                      Expanded(
+                          child: _miniToggle(
+                              'Fixed',
+                              _commissionType == 'fixed',
+                              () => setState(
+                                  () => _commissionType = 'fixed'))),
+                      Expanded(
+                          child: _miniToggle(
+                              '%',
+                              _commissionType == 'percent',
+                              () => setState(
+                                  () => _commissionType = 'percent'))),
                     ],
                   ),
                 ),
@@ -809,19 +1319,28 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
 
         const SizedBox(height: 10),
         _field('Storage (₹)', _storageCtrl,
-            hint: '0', icon: Icons.warehouse_outlined,
+            hint: '0',
+            icon: Icons.warehouse_outlined,
             inputType: TextInputType.number,
-            formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+            formatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+            ]),
         const SizedBox(height: 10),
         _field('Advance Adjusted (₹)', _advanceAdjustedCtrl,
-            hint: '0', icon: Icons.account_balance_wallet_outlined,
+            hint: '0',
+            icon: Icons.account_balance_wallet_outlined,
             inputType: TextInputType.number,
-            formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+            formatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+            ]),
         const SizedBox(height: 10),
         _field('Other Deductions (₹)', _otherCtrl,
-            hint: '0', icon: Icons.remove_circle_outline,
+            hint: '0',
+            icon: Icons.remove_circle_outline,
             inputType: TextInputType.number,
-            formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+            formatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+            ]),
 
         if (_grossTotal > 0) ...[
           const SizedBox(height: 16),
@@ -833,9 +1352,11 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
             ),
             child: Column(children: [
               _calcRow('Gross Total', _grossTotal, prefix: '₹'),
-              _calcRow('Total Deductions', _totalDeductions, prefix: '-₹'),
+              _calcRow('Total Deductions', _totalDeductions,
+                  prefix: '-₹'),
               const Divider(color: Colors.white24, height: 16),
-              _calcRow('Final Receivable', _finalReceivable, large: true, prefix: '₹'),
+              _calcRow('Final Receivable', _finalReceivable,
+                  large: true, prefix: '₹'),
             ]),
           ),
         ],
@@ -863,7 +1384,8 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                 fontSize: 11,
                 fontFamily: 'Poppins',
                 fontWeight: FontWeight.w600,
-                color: selected ? Colors.white : AppColors.textSecondary)),
+                color:
+                    selected ? Colors.white : AppColors.textSecondary)),
       ),
     );
   }
@@ -893,35 +1415,46 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
           _reviewRow('Name', _productNameCtrl.text.trim()),
           _reviewRow('Pricing Type', _pricingType.toUpperCase()),
           _reviewRow('Bags', '$_bags'),
-          _reviewRow('Wt/Bag', '${_weightPerBag.toStringAsFixed(1)} ${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
-          _reviewRow('Total Wt', '${_actualQty.toStringAsFixed(1)} ${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
+          _reviewRow('Wt/Bag',
+              '${_weightPerBag.toStringAsFixed(1)} ${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
+          _reviewRow('Total Wt',
+              '${_actualQty.toStringAsFixed(1)} ${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
           if (_qualityDeduction > 0)
-            _reviewRow('Quality Ded.', '-${_qualityDeduction.toStringAsFixed(1)}'),
-          _reviewRow('Net Qty', '${_netQty.toStringAsFixed(1)} ${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
-          _reviewRow('Rate', '₹${_rate.toStringAsFixed(2)}/${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
+            _reviewRow(
+                'Quality Ded.', '-${_qualityDeduction.toStringAsFixed(1)}'),
+          _reviewRow('Net Qty',
+              '${_netQty.toStringAsFixed(1)} ${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
+          _reviewRow('Rate',
+              '₹${_rate.toStringAsFixed(2)}/${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
         ], Icons.eco_outlined),
 
         const SizedBox(height: 12),
 
         if (_totalDeductions > 0)
           _reviewSection('Deductions', [
-            if (_transport > 0) _reviewRow('Transport', '₹${_transport.toStringAsFixed(2)}'),
-            if (_labour > 0) _reviewRow('Labour', '₹${_labour.toStringAsFixed(2)}'),
+            if (_transport > 0)
+              _reviewRow('Transport', '₹${_transport.toStringAsFixed(2)}'),
+            if (_labour > 0)
+              _reviewRow('Labour', '₹${_labour.toStringAsFixed(2)}'),
             if (_commission > 0)
-              _reviewRow('Commission',
+              _reviewRow(
+                  'Commission',
                   _commissionType == 'percent'
                       ? '$_commission%'
                       : '₹${_commission.toStringAsFixed(2)}'),
-            if (_storage > 0) _reviewRow('Storage', '₹${_storage.toStringAsFixed(2)}'),
+            if (_storage > 0)
+              _reviewRow('Storage', '₹${_storage.toStringAsFixed(2)}'),
             if (_advanceAdjusted > 0)
-              _reviewRow('Advance Adj.', '₹${_advanceAdjusted.toStringAsFixed(2)}'),
-            if (_other > 0) _reviewRow('Other', '₹${_other.toStringAsFixed(2)}'),
-            _reviewRow('Total Ded.', '₹${_totalDeductions.toStringAsFixed(2)}'),
+              _reviewRow('Advance Adj.',
+                  '₹${_advanceAdjusted.toStringAsFixed(2)}'),
+            if (_other > 0)
+              _reviewRow('Other', '₹${_other.toStringAsFixed(2)}'),
+            _reviewRow(
+                'Total Ded.', '₹${_totalDeductions.toStringAsFixed(2)}'),
           ], Icons.remove_circle_outline),
 
         const SizedBox(height: 12),
 
-        // Financial summary card
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -933,7 +1466,8 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
             if (_totalDeductions > 0)
               _calcRow('Total Deductions', _totalDeductions, prefix: '-₹'),
             const Divider(color: Colors.white24, height: 16),
-            _calcRow('Final Receivable', _finalReceivable, large: true, prefix: '₹'),
+            _calcRow('Final Receivable', _finalReceivable,
+                large: true, prefix: '₹'),
           ]),
         ),
 
@@ -947,7 +1481,8 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     );
   }
 
-  Widget _reviewSection(String title, List<Widget> rows, IconData icon) {
+  Widget _reviewSection(
+      String title, List<Widget> rows, IconData icon) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -955,7 +1490,8 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      child:
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(icon, color: AppColors.primary, size: 15),
           const SizedBox(width: 6),
@@ -1049,21 +1585,27 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
             fontFamily: 'Poppins'),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
-          prefixIcon: Icon(icon, color: AppColors.textHint, size: 18),
+          hintStyle:
+              const TextStyle(color: AppColors.textHint, fontSize: 13),
+          prefixIcon:
+              Icon(icon, color: AppColors.textHint, size: 18),
           counterText: '',
           filled: true,
           fillColor: AppColors.surfaceVariant,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.border)),
+              borderSide:
+                  const BorderSide(color: AppColors.border)),
           enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.border)),
+              borderSide:
+                  const BorderSide(color: AppColors.border)),
           focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+              borderSide: const BorderSide(
+                  color: AppColors.primary, width: 1.5)),
         ),
         onChanged: (_) => setState(() {}),
       ),
@@ -1085,22 +1627,29 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
         maxLines: 3,
         textCapitalization: TextCapitalization.sentences,
         style: const TextStyle(
-            fontSize: 13, color: AppColors.textPrimary, fontFamily: 'Poppins'),
+            fontSize: 13,
+            color: AppColors.textPrimary,
+            fontFamily: 'Poppins'),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
+          hintStyle:
+              const TextStyle(color: AppColors.textHint, fontSize: 13),
           filled: true,
           fillColor: AppColors.surfaceVariant,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.border)),
+              borderSide:
+                  const BorderSide(color: AppColors.border)),
           enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.border)),
+              borderSide:
+                  const BorderSide(color: AppColors.border)),
           focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+              borderSide: const BorderSide(
+                  color: AppColors.primary, width: 1.5)),
         ),
       ),
     ]);
