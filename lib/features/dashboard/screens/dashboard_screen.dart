@@ -4,6 +4,7 @@ import 'package:agr_market/features/auth/screens/profile_screen.dart';
 import 'package:agr_market/features/dashboard/screens/reports_screen.dart';
 import 'package:agr_market/inventory/inventory_list_screen.dart';
 import 'package:agr_market/ledger/ledger_screen.dart';
+import 'package:agr_market/product/product_list_screen.dart';
 // import 'package:agr_market/payment/payment_screen.dart';
 import 'package:agr_market/purchase/purchase_screen.dart';
 import 'package:agr_market/sales/sale_create_screen.dart';
@@ -106,7 +107,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ── P&L loader ───────────────────────────────────────────
-Future<void> _loadProfitLoss() async {
+ Future<void> _loadProfitLoss() async {
   try {
     setState(() => _plLoading = true);
     final now = DateTime.now();
@@ -131,8 +132,8 @@ Future<void> _loadProfitLoss() async {
           recentPurchases: _data.recentPurchases,
           weeklyArrivals: _data.weeklyArrivals,
           profitLoss: _ProfitLossData(
-            totalSales: pl.totalSalesRevenue,
-            totalPurchases: pl.totalPurchaseCost,
+            totalSales: pl.totalSales,
+            totalPurchases: pl.totalPurchaseCost,  // Changed from pl.totalPurchases to pl.totalPurchaseCost
             totalExpenses: pl.totalExpenses,
             grossProfit: pl.grossProfit,
             netProfit: pl.netProfit,
@@ -150,6 +151,16 @@ Future<void> _loadProfitLoss() async {
     setState(() => _plLoading = false);
   }
 }
+
+  // ── Navigate to All Products ──────────────────────────────
+  void _openAllProducts() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ProductListScreen(),
+      ),
+    );
+  }
 
   // ── Main loader ───────────────────────────────────────────
   Future<void> _loadDashboard() async {
@@ -288,14 +299,14 @@ Future<void> _loadProfitLoss() async {
     return '${diff.inDays}d ago';
   }
 
-void _addBuyer() {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => const BuyerListScreen(),
-    ),
-  );
-}
+  void _addBuyer() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const BuyerListScreen(),
+      ),
+    );
+  }
 
   void _showLanguagePicker(BuildContext context, LanguageProvider lang) {
     showModalBottomSheet(
@@ -367,25 +378,6 @@ void _addBuyer() {
                     ),
                     Row(
                       children: [
-                        // Container(
-                        //   padding: const EdgeInsets.all(10),
-                        //   decoration: BoxDecoration(
-                        //     color: AppColors.surface,
-                        //     borderRadius: BorderRadius.circular(12),
-                        //     border: Border.all(color: AppColors.border),
-                        //     boxShadow: [
-                        //       BoxShadow(
-                        //         color: AppColors.shadowLight,
-                        //         blurRadius: 8,
-                        //         offset: const Offset(0, 2),
-                        //       )
-                        //     ],
-                        //   ),
-                        //   child: const Icon(
-                        //       Icons.notifications_none_rounded,
-                        //       color: AppColors.primary,
-                        //       size: 22),
-                        // ),
                         GestureDetector(
                           onTap: () =>
                               _showLanguagePicker(context, lang),
@@ -556,10 +548,57 @@ void _addBuyer() {
                   ),
                 const SizedBox(height: 20),
 
-                // ── Quick Actions ────────────────────────────
-                Text(lang.t('quick_actions'),
-                    style: AppTextStyles.headingMedium),
+                // ── Quick Actions header + All Products button ─
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(lang.t('quick_actions'),
+                        style: AppTextStyles.headingMedium),
+                    // All Products pill button
+                    GestureDetector(
+                      onTap: _openAllProducts,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF7CB518), Color(0xFF7CB518)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(30),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF7CB518).withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.production_quantity_limits_rounded,
+                                color: Colors.white, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              'All Products',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                fontFamily: 'Poppins',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 12),
+
+                // ── Quick Actions Row 1: New Purchase / Buyers / New Sale ──
                 Row(
                   children: [
                     Expanded(
@@ -571,23 +610,21 @@ void _addBuyer() {
                           final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
-                                builder: (_) =>
-                                    const NewPurchaseScreen()),
+                                builder: (_) => const NewPurchaseScreen()),
                           );
                           if (result == true) _loadDashboard();
                         },
                       ),
                     ),
                     const SizedBox(width: 10),
-                    // In the build method, replace the "Add Payment" button with:
-Expanded(
-  child: _QuickAction(
-    icon: Icons.people_rounded,
-    label: lang.t('buyers'),
-    color: const Color(0xFFFF9800),
-    onTap: _addBuyer,
-  ),
-),
+                    Expanded(
+                      child: _QuickAction(
+                        icon: Icons.people_rounded,
+                        label: lang.t('buyers'),
+                        color: const Color(0xFFFF9800),
+                        onTap: _addBuyer,
+                      ),
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: _QuickAction(
@@ -598,14 +635,12 @@ Expanded(
                           final created = await Navigator.push<bool>(
                             context,
                             MaterialPageRoute(
-                                builder: (_) =>
-                                    const SaleCreateScreen()),
+                                builder: (_) => const SaleCreateScreen()),
                           );
                           if (created == true) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content:
-                                    Text('Sale created successfully!'),
+                                content: Text('Sale created successfully!'),
                                 backgroundColor: AppColors.success,
                                 behavior: SnackBarBehavior.floating,
                               ),
@@ -617,6 +652,8 @@ Expanded(
                   ],
                 ),
                 const SizedBox(height: 10),
+
+                // ── Quick Actions Row 2: Inventory / Ledger / Reports ──
                 Row(
                   children: [
                     Expanded(
@@ -823,18 +860,6 @@ Expanded(
 
   // ─────────────────────────────────────────────────────────────
   //  HERO BANNER  (compact, professional)
-  //
-  //  ┌────────────────────────────────────────────────────────┐
-  //  │  [📊 Market ERP]                          [● logo]    │
-  //  │  Monthly P&L Overview                                  │
-  //  │  May 2026                                              │
-  //  │ ────────────────────────────────────────────────────   │
-  //  │  ↑ icon    ↓ icon       ⊕ icon                        │
-  //  │  ₹31.6L   ₹1.2Cr     -368.43%                        │
-  //  │  Sales    Net Loss     Margin                          │
-  //  │ ────────────────────────────────────────────────────   │
-  //  │  🛒 Purchases: ₹1.47Cr   🧾 Expenses: ₹33.8K          │
-  //  └────────────────────────────────────────────────────────┘
   // ─────────────────────────────────────────────────────────────
   Widget _buildHeroBanner() {
     final pl = _data.profitLoss;
@@ -900,8 +925,8 @@ Expanded(
                       ),
                     ),
                     const SizedBox(height: 5),
-                   const Text(
-                     "Today's P&L Overview",
+                    const Text(
+                      "Today's P&L Overview",
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 14,
@@ -921,7 +946,7 @@ Expanded(
                 ),
               ),
               const SizedBox(width: 10),
-              // Circular logo — small & on the side
+              // Circular logo
               Container(
                 width: 52,
                 height: 52,
@@ -1059,15 +1084,19 @@ Expanded(
       ),
     );
   }
-String _todayLabelForHero() {
-  final now = DateTime.now();
-  return 'Today, ${now.day} ${_monthName(now.month)} ${now.year}';
-}
 
-String _monthName(int month) {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return months[month - 1];
-}
+  String _todayLabelForHero() {
+    final now = DateTime.now();
+    return 'Today, ${now.day} ${_monthName(now.month)} ${now.year}';
+  }
+
+  String _monthName(int month) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return months[month - 1];
+  }
 
   Widget _buildKpiShimmer() {
     return GridView.count(
@@ -1278,6 +1307,7 @@ class _QuickAction extends StatelessWidget {
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
                 padding: const EdgeInsets.all(10),

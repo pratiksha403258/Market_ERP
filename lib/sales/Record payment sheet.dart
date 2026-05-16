@@ -162,7 +162,7 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
             ),
             backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
+            margin: const EdgeInsets.only(left: 6, right: 6, bottom: 2),
           ),
         );
         Navigator.pop(context, true); // return true → caller can refresh

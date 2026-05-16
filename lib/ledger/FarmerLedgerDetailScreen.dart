@@ -1,3 +1,4 @@
+
 import 'package:agr_market/core/constants/colors.dart';
 import 'package:agr_market/services/constant_service.dart';
 import 'package:agr_market/services/dio_client.dart';
@@ -27,7 +28,9 @@ class FarmerLedgerDetailScreen extends StatefulWidget {
 }
 
 class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
+  // ── API data ───────────────────────────────────────────────
   Map<String, dynamic>? _farmerInfo;
+  Map<String, dynamic>? _businessDetails; // NEW: from API businessDetails
   Map<String, dynamic>? _summary;
   List<Map<String, dynamic>> _transactions = [];
   bool _loading = true;
@@ -42,6 +45,32 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
   DateTime? _endDate;
 
   final ScrollController _scrollCtrl = ScrollController();
+
+  // ── Computed totals from transactions (API summary can be 0) ──
+  double get _computedTotalCredit {
+    // From farmer's perspective: when the business DEBITS farmer = farmer is owed money (Credit in ledger)
+    // API field: debit > 0 means farmer sold goods (farmer gets credit)
+    return _transactions.fold(0.0, (sum, tx) {
+      final d = (tx['debit'] as num?)?.toDouble() ?? 0.0;
+      return sum + d;
+    });
+  }
+
+  double get _computedTotalDebit {
+    // From farmer's perspective: when business pays farmer = farmer's balance reduces (Debit in ledger)
+    // API field: credit > 0 means payment was made to farmer
+    return _transactions.fold(0.0, (sum, tx) {
+      final c = (tx['credit'] as num?)?.toDouble() ?? 0.0;
+      return sum + c;
+    });
+  }
+
+  double get _computedBalance {
+    // Use API closingBalance if non-zero, otherwise compute
+    final apiBalance = (_summary?['closingBalance'] as num?)?.toDouble() ?? 0.0;
+    if (apiBalance != 0) return apiBalance;
+    return _computedTotalCredit - _computedTotalDebit;
+  }
 
   @override
   void initState() {
@@ -65,6 +94,7 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
     }
   }
 
+  // ── Fetch ──────────────────────────────────────────────────
   Future<void> _fetchLedger({bool reset = false}) async {
     if (reset) {
       setState(() {
@@ -95,15 +125,26 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
       }
 
       final data = responseData['data'] as Map<String, dynamic>;
+
+      // ── Parse businessDetails (NEW) ────────────────────────
+      final businessMap = data['businessDetails'] as Map<String, dynamic>? ?? {};
+
+      // ── Parse farmer ──────────────────────────────────────
       final farmerMap = data['farmer'] as Map<String, dynamic>? ?? {};
+
+      // ── Parse summary ─────────────────────────────────────
       final summaryMap = data['summary'] as Map<String, dynamic>? ?? {};
+
+      // ── Parse transactions ────────────────────────────────
       final txList = data['transactions'] as List? ?? [];
-      final transactions =
-          txList.map((t) => t as Map<String, dynamic>).toList();
+      final transactions = txList.map((t) => t as Map<String, dynamic>).toList();
+
+      // ── Parse pagination ──────────────────────────────────
       final pagination = data['pagination'] as Map<String, dynamic>? ?? {};
       final totalPages = (pagination['pages'] as num?)?.toInt() ?? 1;
 
       setState(() {
+        _businessDetails = businessMap;
         _farmerInfo = farmerMap;
         _summary = summaryMap;
         _transactions =
@@ -165,11 +206,10 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx2, setDialog) {
           return AlertDialog(
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             title: Row(children: [
-              const Icon(Icons.language,
-                  color: AppColors.primary, size: 22),
+              const Icon(Icons.language, color: AppColors.primary, size: 22),
               const SizedBox(width: 10),
               Text(
                 langProv.t('select_language_title'),
@@ -193,8 +233,7 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
                 ...LanguageProvider.supportedLanguages.map((lang) {
                   final isSelected = tempSelected == lang.code;
                   return GestureDetector(
-                    onTap: () =>
-                        setDialog(() => tempSelected = lang.code),
+                    onTap: () => setDialog(() => tempSelected = lang.code),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       margin: const EdgeInsets.only(bottom: 8),
@@ -262,8 +301,8 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
                 icon: const Icon(Icons.picture_as_pdf_rounded,
                     size: 16, color: Colors.white),
                 label: const Text('Generate PDF',
-                    style: TextStyle(
-                        color: Colors.white, fontFamily: 'Poppins')),
+                    style:
+                        TextStyle(color: Colors.white, fontFamily: 'Poppins')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   shape: RoundedRectangleBorder(
@@ -319,12 +358,42 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
 
       final pdf = pw.Document();
 
-      final farmerName = _farmerInfo?['name']?.toString() ?? widget.farmerName;
-      final farmerMobile = _farmerInfo?['mobile']?.toString() ?? widget.farmerMobile;
+      // ── Farmer info ────────────────────────────────────────
+      final farmerName =
+          _farmerInfo?['name']?.toString() ?? widget.farmerName;
+      final farmerMobile =
+          _farmerInfo?['mobile']?.toString() ?? widget.farmerMobile;
+      final farmerAddress = [
+        _farmerInfo?['address']?.toString(),
+        _farmerInfo?['village']?.toString(),
+        _farmerInfo?['city']?.toString(),
+        _farmerInfo?['state']?.toString(),
+      ].where((s) => s != null && s.isNotEmpty).join(', ');
 
-      final totalDebit = (_summary?['totalDebit'] as num?)?.toDouble() ?? 0.0;
-      final totalCredit = (_summary?['totalCredit'] as num?)?.toDouble() ?? 0.0;
-      final balance = (_summary?['closingBalance'] as num?)?.toDouble() ?? 0.0;
+      // ── Business info from API ────────────────────────────
+      final bizName = _businessDetails?['name']?.toString() ??
+          langProv.t('company_name');
+      final bizAddress = _businessDetails?['address']?.toString() ??
+          langProv.t('company_address');
+      final bizPhone =
+          _businessDetails?['phone']?.toString() ?? '';
+      final bizEmail =
+          _businessDetails?['email']?.toString() ?? '';
+      final bizGst =
+          _businessDetails?['gstNumber']?.toString() ?? '';
+      final bizPan =
+          _businessDetails?['panNumber']?.toString() ?? '';
+
+      // ── Totals: use computed values from transactions ──────
+      // IMPORTANT: API summary.totalDebit/totalCredit can be 0 (bug on server).
+      // We compute from transactions directly.
+      //
+      // From the FARMER's perspective (matching the sample PDF):
+      //   Credit column  = farmer supplied goods  → API tx.debit > 0
+      //   Debit column   = payment made to farmer → API tx.credit > 0
+      final totalCreditForPdf = _computedTotalCredit;  // what farmer is owed
+      final totalDebitForPdf  = _computedTotalDebit;   // what was paid to farmer
+      final balance           = _computedBalance;
 
       final now = DateTime.now();
       final dateStr = DateFormat('dd MMM yyyy').format(now);
@@ -342,7 +411,7 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  /// HEADER
+                  // ── HEADER ─────────────────────────────────
                   pw.Center(
                     child: pw.Text(
                       '|| Under Kalwan Jurisdiction ||',
@@ -352,113 +421,249 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
                   pw.SizedBox(height: 4),
                   pw.Center(
                     child: pw.Text(
-                      langProv.t('company_name'),
+                      bizName,
                       style: s(sz: 18, bold: true, color: PdfColors.red),
                     ),
                   ),
                   pw.Center(
                     child: pw.Text(
-                      langProv.t('company_address'),
+                      bizAddress,
                       style: s(sz: 10),
                     ),
                   ),
+                  // GST & PAN line
+                  if (bizGst.isNotEmpty || bizPan.isNotEmpty)
+                    pw.Center(
+                      child: pw.Text(
+                        [
+                          if (bizGst.isNotEmpty) 'GST: $bizGst',
+                          if (bizPan.isNotEmpty) 'PAN: $bizPan',
+                        ].join(' | '),
+                        style: s(sz: 8, color: PdfColors.grey600),
+                      ),
+                    ),
+                  pw.SizedBox(height: 4),
                   pw.Center(
                     child: pw.Text(
                       langProv.t('ledger_title').toUpperCase(),
-                      style: s(sz: 10, bold: true),
+                      style: s(sz: 10, bold: true, color: PdfColors.grey700),
                     ),
                   ),
                   pw.Divider(color: PdfColors.red),
 
-                  /// PROP
+                  // ── CONTACT ROW ────────────────────────────
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      pw.Text(
-                        'Prop. Rakesh Hire M: 9021699991',
-                        style: s(sz: 8, color: PdfColors.red),
+                      if (bizPhone.isNotEmpty)
+                        pw.Text(
+                          '\u260E $bizPhone',
+                          style: s(sz: 8, color: PdfColors.red),
+                        ),
+                      if (bizEmail.isNotEmpty)
+                        pw.Text(
+                          '\u2709 $bizEmail',
+                          style: s(sz: 8, color: PdfColors.red),
+                        ),
+                    ],
+                  ),
+                  pw.Divider(color: PdfColors.red),
+
+                  // ── FARMER NAME + DATE ─────────────────────
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.RichText(
+                        text: pw.TextSpan(children: [
+                          pw.TextSpan(
+                            text: '${langProv.t('ledger_farmer_name')} ',
+                            style: s(sz: 10, bold: true, color: PdfColors.red),
+                          ),
+                          pw.TextSpan(
+                            text: farmerName,
+                            style: s(sz: 10, bold: true),
+                          ),
+                        ]),
                       ),
-                      pw.Text(
-                        'Prop. Swajit Hire M: 9565459991',
-                        style: s(sz: 8, color: PdfColors.red),
+                      pw.RichText(
+                        text: pw.TextSpan(children: [
+                          pw.TextSpan(
+                            text: '${langProv.t('ledger_ledger_date')} ',
+                            style: s(sz: 10, bold: true, color: PdfColors.red),
+                          ),
+                          pw.TextSpan(
+                            text: dateStr,
+                            style: s(sz: 10, bold: true),
+                          ),
+                        ]),
                       ),
                     ],
                   ),
                   pw.Divider(color: PdfColors.red),
 
-                  /// FARMER INFO - USING PROVIDER TRANSLATIONS
+                  // ── MOBILE + ADDRESS ──────────────────────
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      pw.Text('${langProv.t('ledger_farmer_name')} $farmerName', style: s(sz: 10)),
-                      pw.Text('${langProv.t('ledger_ledger_date')} $dateStr', style: s(sz: 10)),
-                    ],
-                  ),
-                  pw.Divider(color: PdfColors.red),
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('${langProv.t('mobile')}: $farmerMobile', style: s(sz: 10)),
-                      pw.Text('${langProv.t('village')}: -', style: s(sz: 10)),
+                      pw.RichText(
+                        text: pw.TextSpan(children: [
+                          pw.TextSpan(
+                            text: '${langProv.t('mobile')}: ',
+                            style: s(sz: 10, bold: true, color: PdfColors.red),
+                          ),
+                          pw.TextSpan(
+                            text: farmerMobile,
+                            style: s(sz: 10),
+                          ),
+                        ]),
+                      ),
+                      pw.RichText(
+                        text: pw.TextSpan(children: [
+                          pw.TextSpan(
+                            text: '${langProv.t('address')}: ',
+                            style: s(sz: 10, bold: true, color: PdfColors.red),
+                          ),
+                          pw.TextSpan(
+                            text: farmerAddress.isNotEmpty ? farmerAddress : 'N/A',
+                            style: s(sz: 10),
+                          ),
+                        ]),
+                      ),
                     ],
                   ),
                   pw.Divider(color: PdfColors.red),
                   pw.SizedBox(height: 8),
 
-                  /// SUMMARY - USING PROVIDER TRANSLATIONS
+                  // ── SUMMARY BOXES ──────────────────────────
                   pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
                     children: [
-                      _summaryBox(langProv.t('total_paid'), totalDebit, PdfColors.green, s),
-                      _summaryBox(langProv.t('total_purchased'), totalCredit, PdfColors.red, s),
-                      _summaryBox(langProv.t('balance'), balance, PdfColors.green, s),
+                      _summaryBox(
+                        langProv.t('total_debit'),
+                        totalDebitForPdf,
+                        PdfColors.red,
+                        s,
+                      ),
+                      _summaryBox(
+                        langProv.t('total_credit'),
+                        totalCreditForPdf,
+                        PdfColors.red,
+                        s,
+                      ),
+                      _summaryBox(
+                        '${langProv.t('balance')} (${balance >= 0 ? langProv.t('to_pay') : langProv.t('overpaid')})',
+                        balance.abs(),
+                        PdfColors.green,
+                        s,
+                      ),
                     ],
                   ),
                   pw.SizedBox(height: 10),
 
-                  /// TABLE - USING PROVIDER TRANSLATIONS
+                  // ── TRANSACTION TABLE ──────────────────────
                   pw.Table(
                     border: pw.TableBorder.all(color: PdfColors.red),
                     columnWidths: {
-                      0: const pw.FixedColumnWidth(20),
-                      1: const pw.FixedColumnWidth(55),
-                      2: const pw.FlexColumnWidth(),
-                      3: const pw.FixedColumnWidth(55),
-                      4: const pw.FixedColumnWidth(55),
-                      5: const pw.FixedColumnWidth(65),
+                      0: const pw.FixedColumnWidth(22),   // Sr.
+                      1: const pw.FixedColumnWidth(58),   // Date
+                      2: const pw.FlexColumnWidth(),      // Particulars
+                      3: const pw.FixedColumnWidth(62),   // Debit
+                      4: const pw.FixedColumnWidth(62),   // Credit
+                      5: const pw.FixedColumnWidth(72),   // Balance
                     },
                     children: [
+                      // Header row
                       pw.TableRow(
-                        decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+                        decoration:
+                            const pw.BoxDecoration(color: PdfColors.grey200),
                         children: [
-                          _cell('Sr', s, true),
-                          _cell(langProv.t('ledger_col_date'), s, true),
-                          _cell(langProv.t('ledger_col_desc'), s, true),
-                          _cell(langProv.t('ledger_col_debit'), s, true),
-                          _cell(langProv.t('ledger_col_credit'), s, true),
-                          _cell(langProv.t('ledger_col_balance'), s, true),
+                          _cell('Sr.', s, true,
+                              align: pw.TextAlign.center),
+                          _cell(langProv.t('ledger_col_date'), s, true,
+                              align: pw.TextAlign.center),
+                          _cell(langProv.t('ledger_col_desc'), s, true,
+                              align: pw.TextAlign.center),
+                          _cell(
+                              '${langProv.t('ledger_col_debit')} (Rs)',
+                              s,
+                              true,
+                              align: pw.TextAlign.center),
+                          _cell(
+                              '${langProv.t('ledger_col_credit')} (Rs)',
+                              s,
+                              true,
+                              align: pw.TextAlign.center),
+                          _cell(
+                              '${langProv.t('ledger_col_balance')} (Rs)',
+                              s,
+                              true,
+                              align: pw.TextAlign.center),
                         ],
                       ),
+
+                      // Data rows
                       ..._transactions.asMap().entries.map((e) {
                         final i = e.key + 1;
                         final tx = e.value;
-                        final debit = (tx['debit'] as num?)?.toDouble() ?? 0.0;
-                        final credit = (tx['credit'] as num?)?.toDouble() ?? 0.0;
-                        final runningBalance = (tx['runningBalance'] as num?)?.toDouble() ?? 0.0;
 
-                        // Clean description
-                        String cleanDescription = (tx['description']?.toString() ?? '-')
-                            .replaceAll('₹', 'Rs')
-                            .replaceAll('\u20B9', 'Rs');
+                        // API perspective:
+                        //   tx['debit'] > 0  → farmer sold goods (farmer is owed money)
+                        //                      → show in CREDIT column of ledger
+                        //   tx['credit'] > 0 → payment made to farmer
+                        //                      → show in DEBIT column of ledger
+                        final apiDebit =
+                            (tx['debit'] as num?)?.toDouble() ?? 0.0;
+                        final apiCredit =
+                            (tx['credit'] as num?)?.toDouble() ?? 0.0;
+
+                        // Ledger columns (farmer perspective)
+                        final ledgerCredit = apiDebit;  // goods purchased from farmer
+                        final ledgerDebit  = apiCredit; // payment sent to farmer
+
+                        final runningBalance =
+                            (tx['runningBalance'] as num?)?.toDouble() ?? 0.0;
+
+                        // Clean description (remove rupee symbol for PDF)
+                        final cleanDesc =
+                            (tx['description']?.toString() ?? '-')
+                                .replaceAll('₹', 'Rs')
+                                .replaceAll('\u20B9', 'Rs');
+
+                        // Running balance is stored as negative in API when farmer
+                        // is in credit (business owes farmer). Display absolute with CR/DR.
+                        final balAbs = runningBalance.abs();
+                        final balSuffix =
+                            runningBalance < 0 ? ' CR' : (runningBalance > 0 ? ' DR' : '');
 
                         return pw.TableRow(
                           children: [
-                            _cell('$i', s, false),
-                            _cell(_fmtDate(tx['entryDate'] ?? ''), s, false),
-                            _cell(cleanDescription, s, false),
-                            _cell(debit > 0 ? 'Rs ${_fmt(debit)}' : '-', s, false),
-                            _cell(credit > 0 ? 'Rs ${_fmt(credit)}' : '-', s, false),
-                            _cell('Rs ${_fmt(runningBalance)}', s, false),
+                            _cell('$i', s, false,
+                                align: pw.TextAlign.center),
+                            _cell(_fmtDate(tx['entryDate']?.toString() ?? ''),
+                                s, false),
+                            _cell(cleanDesc, s, false),
+                            _cell(
+                              ledgerDebit > 0
+                                  ? 'Rs ${_fmt(ledgerDebit)}'
+                                  : '-',
+                              s,
+                              false,
+                              align: pw.TextAlign.right,
+                            ),
+                            _cell(
+                              ledgerCredit > 0
+                                  ? 'Rs ${_fmt(ledgerCredit)}'
+                                  : '-',
+                              s,
+                              false,
+                              align: pw.TextAlign.right,
+                            ),
+                            _cell(
+                              'Rs ${_fmt(balAbs)}$balSuffix',
+                              s,
+                              false,
+                              align: pw.TextAlign.right,
+                            ),
                           ],
                         );
                       }).toList(),
@@ -466,7 +671,7 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
                   ),
                   pw.SizedBox(height: 10),
 
-                  /// BALANCE WORDS (BOXED)
+                  // ── BALANCE IN WORDS ───────────────────────
                   pw.Container(
                     width: double.infinity,
                     padding: const pw.EdgeInsets.all(6),
@@ -474,49 +679,76 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
                       border: pw.Border.all(color: PdfColors.red),
                     ),
                     child: pw.Text(
-                      'Balance Amount in Words: ${_numberToWords(balance.toInt())} Rupees Only',
-                      style: s(sz: 9),
+                      '${langProv.t('balance_in_words')}: ${_numberToWords(balance.abs().toInt())} Rupees Only',
+                      style: s(sz: 9, bold: true),
                     ),
                   ),
                   pw.SizedBox(height: 6),
 
-                  /// FINAL ROW - USING PROVIDER TRANSLATIONS
+                  // ── THANK YOU + BALANCE ────────────────────
                   pw.Container(
                     decoration: pw.BoxDecoration(
                       border: pw.Border.all(color: PdfColors.red),
                     ),
-                    padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                    padding: const pw.EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 6),
                     child: pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
-                        pw.Text(langProv.t('thank_you'), style: s(sz: 10, bold: true)),
                         pw.Text(
-                          '${langProv.t('balance')}: Rs ${_fmt(balance)}',
-                          style: s(sz: 11, bold: true),
+                          langProv.t('thank_you'),
+                          style: s(sz: 11, bold: true, color: PdfColors.red),
+                        ),
+                        pw.RichText(
+                          text: pw.TextSpan(children: [
+                            pw.TextSpan(
+                              text: '${langProv.t('balance')}: ',
+                              style: s(
+                                  sz: 11,
+                                  bold: true,
+                                  color: PdfColors.red),
+                            ),
+                            pw.TextSpan(
+                              text:
+                                  'Rs ${_fmt(balance.abs())} (${balance >= 0 ? langProv.t('to_pay') : langProv.t('overpaid')})',
+                              style: s(sz: 11, bold: true),
+                            ),
+                          ]),
                         ),
                       ],
                     ),
                   ),
-                  pw.SizedBox(height: 20),
+                  pw.SizedBox(height: 24),
 
-                  /// SIGNATURE - USING PROVIDER TRANSLATIONS
+                  // ── SIGNATURES ─────────────────────────────
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
                       pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
-                          pw.Container(width: 120, height: 1, color: PdfColors.black),
+                          pw.Text(
+                            '--------------------------------',
+                            style: s(sz: 9, color: PdfColors.grey600),
+                          ),
                           pw.SizedBox(height: 4),
-                          pw.Text(langProv.t('buyers_signature'), style: s(sz: 9)),
+                          pw.Text(
+                            langProv.t('buyers_signature'),
+                            style: s(sz: 9, bold: true, color: PdfColors.red),
+                          ),
                         ],
                       ),
                       pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.end,
                         children: [
-                          pw.Container(width:160, height: 1, color: PdfColors.black),
+                          pw.Text(
+                            '--------------------------------',
+                            style: s(sz: 9, color: PdfColors.grey600),
+                          ),
                           pw.SizedBox(height: 4),
                           pw.Text(
                             langProv.t('for_company'),
-                            style: s(sz: 9, bold: true),
+                            style: s(sz: 9, bold: true, color: PdfColors.red),
                           ),
                         ],
                       ),
@@ -532,284 +764,118 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
       final bytes = await pdf.save();
       await Printing.layoutPdf(
         onLayout: (_) async => bytes,
-        name: 'Farmer_Ledger.pdf',
+        name: 'Farmer_Ledger_$farmerName.pdf',
       );
     } catch (e) {
       _snack('PDF Error: $e', isError: true);
+      debugPrint('PDF export error: $e');
     } finally {
       setState(() => _exporting = false);
     }
   }
+
+  // ── Number to words ────────────────────────────────────────
   String _numberToWords(int number) {
     if (number == 0) return 'Zero';
-
-    final units = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
-    final teens = ['', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-    final tens = ['', 'Ten', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    final units = [
+      '',
+      'One',
+      'Two',
+      'Three',
+      'Four',
+      'Five',
+      'Six',
+      'Seven',
+      'Eight',
+      'Nine'
+    ];
+    final teens = [
+      '',
+      'Eleven',
+      'Twelve',
+      'Thirteen',
+      'Fourteen',
+      'Fifteen',
+      'Sixteen',
+      'Seventeen',
+      'Eighteen',
+      'Nineteen'
+    ];
+    final tens = [
+      '',
+      'Ten',
+      'Twenty',
+      'Thirty',
+      'Forty',
+      'Fifty',
+      'Sixty',
+      'Seventy',
+      'Eighty',
+      'Ninety'
+    ];
 
     String convert(int n) {
       if (n < 10) return units[n];
       if (n < 20) return teens[n - 10];
       if (n < 100) return '${tens[n ~/ 10]} ${units[n % 10]}'.trim();
       if (n < 1000) return '${units[n ~/ 100]} Hundred ${convert(n % 100)}'.trim();
-      if (n < 100000) return '${convert(n ~/ 1000)} Thousand ${convert(n % 1000)}'.trim();
-      if (n < 10000000) return '${convert(n ~/ 100000)} Lakh ${convert(n % 100000)}'.trim();
+      if (n < 100000)
+        return '${convert(n ~/ 1000)} Thousand ${convert(n % 1000)}'.trim();
+      if (n < 10000000)
+        return '${convert(n ~/ 100000)} Lakh ${convert(n % 100000)}'.trim();
       return '${convert(n ~/ 10000000)} Crore ${convert(n % 10000000)}'.trim();
     }
 
     return convert(number);
   }
-  pw.Widget _summaryBox(String title, double value, PdfColor color, Function s) {
+
+  // ── PDF helpers ────────────────────────────────────────────
+  pw.Widget _summaryBox(
+      String title, double value, PdfColor color, Function s) {
     return pw.Container(
-      width: 140,
+      width: 150,
       padding: const pw.EdgeInsets.all(8),
       decoration: pw.BoxDecoration(
         border: pw.Border.all(color: PdfColors.red),
         borderRadius: pw.BorderRadius.circular(6),
       ),
       child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
-          pw.Text(title, style: s(sz: 9)),
+          pw.Text(title, style: s(sz: 9, bold: true, color: PdfColors.red)),
           pw.SizedBox(height: 4),
           pw.Text(
-            '₹${_fmt(value)}',
-            style: s(sz: 11, bold: true, color: color),
+            'Rs ${_fmt(value)}',
+            style: s(sz: 12, bold: true, color: color),
           ),
         ],
       ),
     );
   }
 
-  pw.Widget _cell(String text, Function s, bool bold) {
+  pw.Widget _cell(
+    String text,
+    Function s,
+    bool bold, {
+    pw.TextAlign align = pw.TextAlign.left,
+  }) {
     return pw.Padding(
       padding: const pw.EdgeInsets.all(5),
       child: pw.Text(
         text,
         style: s(sz: 8, bold: bold),
+        textAlign: align,
       ),
-    );
-  }
-
-
-  // ── PDF table ──────────────────────────────────────────────
-  pw.Widget _pdfTable({
-    required List<Map<String, dynamic>> transactions,
-    required LanguageProvider langProv,
-    required PdfColor borderGrey,
-    required PdfColor lightGrey,
-    required PdfColor midGrey,
-    required pw.TextStyle Function(
-            {double sz, bool bold, PdfColor color})
-        s,
-  }) {
-    final colW = {
-      0: const pw.FixedColumnWidth(50),
-      1: const pw.FlexColumnWidth(3.5),
-      2: const pw.FixedColumnWidth(56),
-      3: const pw.FixedColumnWidth(56),
-      4: const pw.FixedColumnWidth(56),
-      5: const pw.FixedColumnWidth(58),
-    };
-
-    pw.Widget hc(String t,
-            {pw.TextAlign a = pw.TextAlign.left}) =>
-        pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(
-              horizontal: 4, vertical: 5),
-          child: pw.Text(t,
-              textAlign: a, style: s(sz: 8, bold: true)),
-        );
-
-    pw.Widget dc(String t,
-            {pw.TextAlign a = pw.TextAlign.left,
-            bool bold = false,
-            PdfColor? color}) =>
-        pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(
-              horizontal: 4, vertical: 4),
-          child: pw.Text(t,
-              textAlign: a,
-              maxLines: 3,
-              style: s(
-                  sz: 7.5,
-                  bold: bold,
-                  color: color ?? PdfColors.black)),
-        );
-
-    final headerRow = pw.TableRow(
-      decoration: pw.BoxDecoration(color: lightGrey),
-      children: [
-        hc(langProv.t('ledger_col_date')),
-        hc(langProv.t('ledger_col_desc')),
-        hc(langProv.t('ledger_col_ref')),
-        hc(langProv.t('ledger_col_credit'), a: pw.TextAlign.right),
-        hc(langProv.t('ledger_col_debit'), a: pw.TextAlign.right),
-        hc(langProv.t('ledger_col_balance'), a: pw.TextAlign.right),
-      ],
-    );
-
-    double sumC = 0, sumD = 0;
-
-    final rows = transactions.asMap().entries.map((e) {
-      final i = e.key;
-      final tx = e.value;
-
-      final dateStr = tx['entryDate']?.toString() ?? '';
-      final date = DateTime.tryParse(dateStr)?.toLocal();
-      final dl =
-          date != null ? DateFormat('dd/MM/yy').format(date) : '-';
-
-      final desc = tx['description']?.toString() ?? '-';
-      final entryType = tx['entryType']?.toString() ?? '';
-      final typeKey = _typeKey(entryType);
-      final tl = typeKey != null ? langProv.t(typeKey) : '';
-      final fullDesc = tl.isNotEmpty ? '$desc\n$tl' : desc;
-
-      final refNo = tx['referenceNumber']?.toString() ??
-          tx['receiptNumber']?.toString() ??
-          tx['transactionId']?.toString() ??
-          '-';
-
-      final debit = (tx['debit'] as num?)?.toDouble() ?? 0;
-      final credit = (tx['credit'] as num?)?.toDouble() ?? 0;
-      final balance =
-          (tx['runningBalance'] as num?)?.toDouble() ?? 0;
-
-      sumC += credit;
-      sumD += debit;
-
-      final bg = i.isEven ? PdfColors.white : lightGrey;
-
-      return pw.TableRow(
-        decoration: pw.BoxDecoration(color: bg),
-        children: [
-          dc(dl, color: midGrey),
-          dc(fullDesc),
-          dc(refNo, color: midGrey),
-          dc(credit > 0 ? _fmt(credit) : '0',
-              a: pw.TextAlign.right),
-          dc(debit > 0 ? _fmt(debit) : '0',
-              a: pw.TextAlign.right),
-          dc(_fmt(balance.abs()),
-              a: pw.TextAlign.right, bold: true),
-        ],
-      );
-    }).toList();
-
-    final lastBal = transactions.isNotEmpty
-        ? (transactions.last['runningBalance'] as num?)
-                ?.toDouble() ??
-            0
-        : 0.0;
-
-    final totalRow = pw.TableRow(
-      decoration: pw.BoxDecoration(color: lightGrey),
-      children: [
-        dc(langProv.t('ledger_total'), bold: true),
-        dc(''),
-        dc(''),
-        dc(_fmt(sumC), a: pw.TextAlign.right, bold: true),
-        dc(_fmt(sumD), a: pw.TextAlign.right, bold: true),
-        dc(_fmt(lastBal.abs()),
-            a: pw.TextAlign.right, bold: true),
-      ],
-    );
-
-    return pw.Table(
-      border: pw.TableBorder.all(color: borderGrey, width: 0.5),
-      columnWidths: colW,
-      children: [headerRow, ...rows, totalRow],
-    );
-  }
-
-  // ── PDF summary rows ───────────────────────────────────────
-  pw.Widget _pdfSummary({
-    required double totalCredit,
-    required double closingBalance,
-    required LanguageProvider langProv,
-    required PdfColor borderGrey,
-    required PdfColor lightGrey,
-    required pw.TextStyle Function(
-            {double sz, bool bold, PdfColor color})
-        s,
-  }) {
-    pw.TableRow row(String lbl, String val) => pw.TableRow(
-          decoration: pw.BoxDecoration(color: lightGrey),
-          children: [
-            pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(
-                  horizontal: 6, vertical: 5),
-              child: pw.Text(lbl, style: s(sz: 8, bold: true)),
-            ),
-            pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(
-                  horizontal: 6, vertical: 5),
-              child: pw.Text(val,
-                  textAlign: pw.TextAlign.right,
-                  style: s(sz: 8, bold: true)),
-            ),
-          ],
-        );
-
-    return pw.Table(
-      border: pw.TableBorder.all(color: borderGrey, width: 0.5),
-      columnWidths: const {
-        0: pw.FlexColumnWidth(5),
-        1: pw.FixedColumnWidth(80),
-      },
-      children: [
-        row(langProv.t('ledger_on_account'), _fmt(totalCredit)),
-        row(langProv.t('ledger_final_balance'), _fmt(closingBalance.abs())),
-      ],
     );
   }
 
   // ── Helpers ────────────────────────────────────────────────
-  String _fmt(double v) =>
-      NumberFormat('#,##,##0', 'en_IN').format(v);
+  String _fmt(double v) => NumberFormat('#,##,##0', 'en_IN').format(v);
 
-  String? _typeKey(String type) {
-    switch (type.toLowerCase()) {
-      case 'purchase':
-        return 'type_purchase';
-      case 'payment':
-        return 'type_payment';
-      case 'advance':
-        return 'type_advance';
-      case 'expense_reversal':
-        return 'type_reversal';
-      default:
-        return null;
-    }
-  }
-
-  pw.Widget _pdfCell(String text, Function s, {bool isHeader = false}) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.all(6),
-      child: pw.Text(
-        text,
-        style: s(
-          sz: 8,
-          bold: isHeader,
-          color: isHeader ? PdfColors.white : PdfColors.black,
-        ),
-      ),
-    );
-  }
-
-  void _snack(String msg, {bool isError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg,
-          style:
-              const TextStyle(fontFamily: 'Poppins', fontSize: 13)),
-      backgroundColor:
-          isError ? AppColors.error : AppColors.success,
-      behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.all(16),
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12)),
-    ));
+  String _fmtShort(double v) {
+    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
+    return v.toStringAsFixed(0);
   }
 
   String _fmtDate(String raw) {
@@ -819,10 +885,41 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
     return DateFormat('dd/MM/yyyy').format(d);
   }
 
-  String _fmtShort(double v) {
-    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
-    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
-    return v.toStringAsFixed(0);
+  /// Maps API entryType → translation key.
+  /// Handles all known types including the actual API value "debit_transaction".
+  String? _typeKey(String type) {
+    switch (type.toLowerCase()) {
+      case 'purchase':
+      case 'debit_transaction': // actual API value for purchase
+        return 'type_purchase';
+      case 'payment':
+      case 'credit_transaction': // actual API value for payment
+        return 'type_payment';
+      case 'advance':
+      case 'advance_given':
+        return 'type_advance';
+      case 'expense_reversal':
+        return 'type_reversal';
+      case 'sale':
+        return 'type_sale';
+      case 'expense':
+        return 'type_expense';
+      default:
+        return null;
+    }
+  }
+
+  void _snack(String msg, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg,
+          style: const TextStyle(fontFamily: 'Poppins', fontSize: 13)),
+      backgroundColor: isError ? AppColors.error : AppColors.success,
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.only(left: 6, right: 6, bottom: 2),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
   }
 
   // ── BUILD ──────────────────────────────────────────────────
@@ -831,39 +928,36 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
     return Consumer<LanguageProvider>(
       builder: (context, langProv, _) {
         final isMarathi = langProv.locale.languageCode == 'mr';
-        final closingBalance =
-            (_summary?['closingBalance'] as num?)?.toDouble() ?? 0;
-        final totalDebit =
-            (_summary?['totalDebit'] as num?)?.toDouble() ?? 0;
-        final totalCredit =
-            (_summary?['totalCredit'] as num?)?.toDouble() ?? 0;
 
-      
-      TextStyle _textStyle({
-     double size = 14,
-  FontWeight weight = FontWeight.normal,
-  Color color = AppColors.textPrimary,
-}) {
-  return TextStyle(
-    fontSize: size,
-    fontWeight: weight,
-    color: color,
-    
-    fontFamily: isMarathi ? 'NotoSansDevanagari' : 'Poppins',
-  );
-}
+        // Use computed values (not API summary which can be 0)
+        final totalCredit = _computedTotalCredit;
+        final totalDebit  = _computedTotalDebit;
+        final balance     = _computedBalance;
+
+        TextStyle _textStyle({
+          double size = 14,
+          FontWeight weight = FontWeight.normal,
+          Color color = AppColors.textPrimary,
+        }) {
+          return TextStyle(
+            fontSize: size,
+            fontWeight: weight,
+            color: color,
+            fontFamily: isMarathi ? 'NotoSansDevanagari' : 'Poppins',
+          );
+        }
 
         return Scaffold(
           backgroundColor: AppColors.background,
           body: Column(children: [
+            // ── HEADER ──────────────────────────────────────
             Container(
-              decoration: const BoxDecoration(
-                  gradient: AppColors.heroGradient),
+              decoration:
+                  const BoxDecoration(gradient: AppColors.heroGradient),
               child: SafeArea(
                 bottom: false,
                 child: Padding(
-                  padding:
-                      const EdgeInsets.fromLTRB(16, 14, 16, 20),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
                   child: Column(children: [
                     Row(children: [
                       GestureDetector(
@@ -874,17 +968,14 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
                             color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(
-                              Icons.arrow_back_rounded,
-                              color: Colors.white,
-                              size: 20),
+                          child: const Icon(Icons.arrow_back_rounded,
+                              color: Colors.white, size: 20),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(widget.farmerName,
                                 style: _textStyle(
@@ -900,19 +991,17 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
                           ],
                         ),
                       ),
+                      // Date filter button
                       GestureDetector(
                         onTap: _pickDateRange,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                            color:
-                                Colors.white.withOpacity(0.2),
-                            borderRadius:
-                                BorderRadius.circular(10),
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                                color: Colors.white
-                                    .withOpacity(0.3)),
+                                color: Colors.white.withOpacity(0.3)),
                           ),
                           child: Row(children: [
                             const Icon(Icons.date_range_rounded,
@@ -922,8 +1011,8 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
                               _startDate != null
                                   ? (isMarathi ? 'फिल्टर' : 'Filtered')
                                   : (isMarathi ? 'दिनांक' : 'Date'),
-                              style: _textStyle(
-                                  size: 11, color: Colors.white),
+                              style:
+                                  _textStyle(size: 11, color: Colors.white),
                             ),
                             if (_startDate != null) ...[
                               const SizedBox(width: 4),
@@ -935,80 +1024,70 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
                                   });
                                   _fetchLedger(reset: true);
                                 },
-                                child: const Icon(
-                                    Icons.close_rounded,
-                                    color: Colors.white70,
-                                    size: 13),
+                                child: const Icon(Icons.close_rounded,
+                                    color: Colors.white70, size: 13),
                               ),
                             ],
                           ]),
                         ),
                       ),
                       const SizedBox(width: 8),
+                      // PDF export button
                       GestureDetector(
-                        onTap: _exporting
-                            ? null
-                            : _showLanguageBeforeExport,
+                        onTap:
+                            _exporting ? null : _showLanguageBeforeExport,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius:
-                                BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: _exporting
                               ? const SizedBox(
                                   width: 14,
                                   height: 14,
-                                  child:
-                                      CircularProgressIndicator(
-                                          color:
-                                              AppColors.primary,
-                                          strokeWidth: 2))
-                              : const Row(children: [
-                                  Icon(
-                                      Icons
-                                          .picture_as_pdf_rounded,
+                                  child: CircularProgressIndicator(
                                       color: AppColors.primary,
-                                      size: 15),
+                                      strokeWidth: 2))
+                              : const Row(children: [
+                                  Icon(Icons.picture_as_pdf_rounded,
+                                      color: AppColors.primary, size: 15),
                                   SizedBox(width: 5),
                                   Text('PDF',
                                       style: TextStyle(
-                                          color:
-                                              AppColors.primary,
+                                          color: AppColors.primary,
                                           fontSize: 12,
-                                          fontWeight:
-                                              FontWeight.w700,
-                                          fontFamily:
-                                              'Poppins')),
+                                          fontWeight: FontWeight.w700,
+                                          fontFamily: 'Poppins')),
                                 ]),
                         ),
                       ),
                     ]),
                     const SizedBox(height: 16),
-                    if (!_loading && _summary != null)
+                    // Summary chips — use computed totals
+                    if (!_loading)
                       Row(children: [
                         _chip(
-                          langProv.t('total_paid'),
-                          '₹${_fmtShort(totalDebit)}',
+                          langProv.t('total_debit'),
+                          'Rs ${_fmtShort(totalDebit)}',
                           Colors.redAccent.shade100,
                           isMarathi,
                         ),
                         const SizedBox(width: 8),
                         _chip(
-                          langProv.t('total_purchased'),
-                          '₹${_fmtShort(totalCredit)}',
+                          langProv.t('total_credit'),
+                          'Rs ${_fmtShort(totalCredit)}',
                           Colors.greenAccent.shade100,
                           isMarathi,
                         ),
                         const SizedBox(width: 8),
                         _chip(
-                          closingBalance > 0
-                              ? langProv.t('due')
+                          balance > 0
+                              ? langProv.t('to_pay')
                               : langProv.t('cleared'),
-                          '₹${_fmtShort(closingBalance.abs())}',
-                          closingBalance > 0
+                          'Rs ${_fmtShort(balance.abs())}',
+                          balance > 0
                               ? Colors.orangeAccent.shade100
                               : Colors.greenAccent.shade100,
                           isMarathi,
@@ -1018,6 +1097,8 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
                 ),
               ),
             ),
+
+            // ── TRANSACTION LIST ─────────────────────────────
             Expanded(
               child: _loading
                   ? const Center(
@@ -1028,33 +1109,26 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
                       : _transactions.isEmpty
                           ? _buildEmpty(isMarathi)
                           : RefreshIndicator(
-                              onRefresh: () =>
-                                  _fetchLedger(reset: true),
+                              onRefresh: () => _fetchLedger(reset: true),
                               color: AppColors.primary,
                               child: ListView.builder(
                                 controller: _scrollCtrl,
-                                padding: const EdgeInsets
-                                    .fromLTRB(16, 12, 16, 24),
+                                padding: const EdgeInsets.fromLTRB(
+                                    16, 12, 16, 24),
                                 itemCount: _transactions.length +
                                     (_loadingMore ? 1 : 0),
                                 itemBuilder: (_, i) {
                                   if (i == _transactions.length) {
                                     return const Padding(
-                                      padding:
-                                          EdgeInsets.all(16),
+                                      padding: EdgeInsets.all(16),
                                       child: Center(
-                                          child:
-                                              CircularProgressIndicator(
-                                                  color: AppColors
-                                                      .primary,
-                                                  strokeWidth:
-                                                      2)),
+                                          child: CircularProgressIndicator(
+                                              color: AppColors.primary,
+                                              strokeWidth: 2)),
                                     );
                                   }
                                   return _buildTile(
-                                      _transactions[i],
-                                      langProv,
-                                      isMarathi);
+                                      _transactions[i], langProv, isMarathi);
                                 },
                               ),
                             ),
@@ -1065,11 +1139,13 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
     );
   }
 
-  Widget _chip(String label, String value, Color color, bool isMarathi) =>
+  // ── CHIP widget ────────────────────────────────────────────
+  Widget _chip(
+      String label, String value, Color color, bool isMarathi) =>
       Expanded(
         child: Container(
-          padding: const EdgeInsets.symmetric(
-              horizontal: 10, vertical: 8),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.18),
             borderRadius: BorderRadius.circular(10),
@@ -1077,36 +1153,47 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
           child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-            Text(label,
-                style: TextStyle(
-                    color: color,
-                    fontSize: 9,
-                    fontFamily: isMarathi ? 'NotoSansDevanagari' : 'Poppins',)),
-            const SizedBox(height: 2),
-            Text(value,
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: isMarathi ? 'NotoSansDevanagari' : 'Poppins'),
-                overflow: TextOverflow.ellipsis),
-          ]),
+                Text(label,
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 9,
+                        fontFamily: isMarathi
+                            ? 'NotoSansDevanagari'
+                            : 'Poppins')),
+                const SizedBox(height: 2),
+                Text(value,
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: isMarathi
+                            ? 'NotoSansDevanagari'
+                            : 'Poppins'),
+                    overflow: TextOverflow.ellipsis),
+              ]),
         ),
       );
 
-  Widget _buildTile(Map<String, dynamic> tx, LanguageProvider langProv, bool isMarathi) {
+  // ── TRANSACTION TILE ───────────────────────────────────────
+  Widget _buildTile(
+      Map<String, dynamic> tx, LanguageProvider langProv, bool isMarathi) {
     final dateStr = tx['entryDate']?.toString() ?? '';
     final description = tx['description']?.toString() ?? '-';
     final entryType = tx['entryType']?.toString() ?? '';
-    final debit = (tx['debit'] as num?)?.toDouble() ?? 0;
-    final credit = (tx['credit'] as num?)?.toDouble() ?? 0;
+
+    // API debit > 0 = farmer sold goods (credit to farmer = green)
+    // API credit > 0 = payment made to farmer (debit from farmer = red)
+    final apiDebit  = (tx['debit'] as num?)?.toDouble() ?? 0.0;
+    final apiCredit = (tx['credit'] as num?)?.toDouble() ?? 0.0;
+
+    final isFarmerCredit = apiDebit > 0; // farmer is owed money
+    final amount = isFarmerCredit ? apiDebit : apiCredit;
+
     final runningBalance =
-        (tx['runningBalance'] as num?)?.toDouble() ?? 0;
+        (tx['runningBalance'] as num?)?.toDouble() ?? 0.0;
     final refNo = tx['referenceNumber']?.toString() ??
         tx['receiptNumber']?.toString() ??
         '';
-    final isCredit = credit > 0;
-    final amount = isCredit ? credit : debit;
 
     final typeKey = _typeKey(entryType);
     final typeLabel = typeKey != null ? langProv.t(typeKey) : '';
@@ -1127,96 +1214,111 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
         ],
       ),
       child: Row(children: [
+        // Icon
         Container(
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            color: isCredit
+            color: isFarmerCredit
                 ? AppColors.successSurface
                 : AppColors.warningSurface,
             shape: BoxShape.circle,
           ),
           child: Icon(
-            isCredit
+            isFarmerCredit
                 ? Icons.arrow_downward_rounded
                 : Icons.arrow_upward_rounded,
-            color:
-                isCredit ? AppColors.success : AppColors.warning,
+            color: isFarmerCredit
+                ? AppColors.success
+                : AppColors.warning,
             size: 20,
           ),
         ),
         const SizedBox(width: 12),
+
+        // Description & meta
         Expanded(
           child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-            Text(description,
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                    fontFamily: isMarathi ? 'NotoSansDevanagari' : 'Poppins'),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 3),
-            Row(children: [
-              if (typeLabel.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.primarySurface,
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  child: Text(
-                    typeLabel,
+                Text(description,
                     style: TextStyle(
-                        fontSize: 9,
-                        color: AppColors.primaryDark,
-                       fontFamily: isMarathi ? 'NotoSansDevanagari' : 'Poppins',
-                        fontWeight: FontWeight.w600),
-                  ),
-                ),
-              if (typeLabel.isNotEmpty) const SizedBox(width: 8),
-              Text(_fmtDate(dateStr),
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textHint,
-                     fontFamily: isMarathi ? 'NotoSansDevanagari' : 'Poppins')),
-              if (refNo.isNotEmpty) ...[
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(refNo,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                        fontFamily: isMarathi
+                            ? 'NotoSansDevanagari'
+                            : 'Poppins'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 3),
+                Row(children: [
+                  if (typeLabel.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySurface,
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: Text(
+                        typeLabel,
+                        style: TextStyle(
+                            fontSize: 9,
+                            color: AppColors.primaryDark,
+                            fontFamily: isMarathi
+                                ? 'NotoSansDevanagari'
+                                : 'Poppins',
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Text(_fmtDate(dateStr),
                       style: TextStyle(
-                          fontSize: 10,
+                          fontSize: 11,
                           color: AppColors.textHint,
-                          fontFamily: isMarathi ? 'NotoSansDevanagari' : 'Poppins'),
-                      overflow: TextOverflow.ellipsis),
-                ),
-              ],
-            ]),
-          ]),
+                          fontFamily: isMarathi
+                              ? 'NotoSansDevanagari'
+                              : 'Poppins')),
+                  if (refNo.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(refNo,
+                          style: TextStyle(
+                              fontSize: 10,
+                              color: AppColors.textHint,
+                              fontFamily: isMarathi
+                                  ? 'NotoSansDevanagari'
+                                  : 'Poppins'),
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ]),
+              ]),
         ),
-        Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
+
+        // Amount & balance
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text(
-            '${isCredit ? '+' : '-'}Rs.${_fmt(amount)}',
+            '${isFarmerCredit ? '+' : '-'}Rs.${_fmt(amount)}',
             style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: isCredit
+                color: isFarmerCredit
                     ? AppColors.success
                     : AppColors.error,
-                fontFamily: isMarathi ? 'NotoSansDevanagari' : 'Poppins'),
+                fontFamily:
+                    isMarathi ? 'NotoSansDevanagari' : 'Poppins'),
           ),
           const SizedBox(height: 3),
           Text(
-            '${langProv.t('balance')}: Rs.${_fmt(runningBalance.abs())}',
+            '${langProv.t('balance')}: Rs.${_fmt(runningBalance.abs())}${runningBalance < 0 ? ' CR' : ''}',
             style: TextStyle(
                 fontSize: 10,
                 color: AppColors.textHint,
-                fontFamily: isMarathi ? 'NotoSansDevanagari' : 'Poppins'),
+                fontFamily:
+                    isMarathi ? 'NotoSansDevanagari' : 'Poppins'),
           ),
         ]),
       ]),
@@ -1229,28 +1331,28 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
           child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-            const Icon(Icons.error_outline,
-                size: 48, color: AppColors.error),
-            const SizedBox(height: 12),
-            Text(_error ?? 'Something went wrong',
-                style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontFamily: 'Poppins'),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => _fetchLedger(reset: true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-              ),
-              child: Text(langProv.t('retry'),
-                  style:
-                      const TextStyle(fontFamily: 'Poppins')),
-            ),
-          ]),
+                const Icon(Icons.error_outline,
+                    size: 48, color: AppColors.error),
+                const SizedBox(height: 12),
+                Text(_error ?? 'Something went wrong',
+                    style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontFamily: 'Poppins'),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => _fetchLedger(reset: true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: Text(langProv.t('retry'),
+                      style:
+                          const TextStyle(fontFamily: 'Poppins')),
+                ),
+              ]),
         ),
       );
 
@@ -1258,28 +1360,32 @@ class _FarmerLedgerDetailScreenState extends State<FarmerLedgerDetailScreen> {
         child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-          const Icon(Icons.receipt_long_outlined,
-              size: 56, color: AppColors.textHint),
-          const SizedBox(height: 12),
-          Text(
-            isMarathi
-                ? 'कोणतेही खाते नोंदी सापडल्या नाहीत'
-                : 'No ledger entries found',
-            style: TextStyle(
-                color: AppColors.textSecondary,
-               fontFamily: isMarathi ? 'NotoSansDevanagari' : 'Poppins'),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            isMarathi
-                ? 'खरेदी किंवा पेमेंटनंतर व्यवहार येथे दिसतील'
-                : 'Transactions will appear here after purchases or payments',
-            style: TextStyle(
-                color: AppColors.textHint,
-                fontFamily: isMarathi ? 'NotoSansDevanagari' : 'Poppins',
-                fontSize: 12),
-            textAlign: TextAlign.center,
-          ),
-        ]),
+              const Icon(Icons.receipt_long_outlined,
+                  size: 56, color: AppColors.textHint),
+              const SizedBox(height: 12),
+              Text(
+                isMarathi
+                    ? 'कोणतेही खाते नोंदी सापडल्या नाहीत'
+                    : 'No ledger entries found',
+                style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontFamily: isMarathi
+                        ? 'NotoSansDevanagari'
+                        : 'Poppins'),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                isMarathi
+                    ? 'खरेदी किंवा पेमेंटनंतर व्यवहार येथे दिसतील'
+                    : 'Transactions will appear here after purchases or payments',
+                style: TextStyle(
+                    color: AppColors.textHint,
+                    fontFamily: isMarathi
+                        ? 'NotoSansDevanagari'
+                        : 'Poppins',
+                    fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ]),
       );
 }

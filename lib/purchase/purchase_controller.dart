@@ -344,6 +344,7 @@ import '../../models/farmer_model.dart';
 import '../../models/purchase_model.dart';
 import '../../models/deduction_model.dart';
 import '../../services/purchase_service.dart';
+import '../providers/language_provider.dart';
 
 class PurchaseController extends ChangeNotifier {
   final PurchaseService _purchaseService = PurchaseService();
@@ -395,6 +396,12 @@ class PurchaseController extends ChangeNotifier {
             f.mobile.contains(query))
         .toList();
   }
+  // String t(String key) {
+  //   // You'll need to access LanguageProvider. This is a simplified approach.
+  //   // Better to pass context or use Provider in UI layer
+  //   return key; // Placeholder - translations should be handled in UI
+  // }
+  
 
   // ── Computed ──────────────────────────────────────────────────
   double get grossTotal => _lines.fold(0, (s, l) => s + l.lineTotal);
@@ -517,17 +524,18 @@ class PurchaseController extends ChangeNotifier {
   // ── Navigation ────────────────────────────────────────────────
   void nextStep() {
     if (_currentStep == 0 && _selectedFarmer == null) {
-      setError('Please select a farmer');
+     setError('select_farmer_error');
       return;
     }
     if (_currentStep == 1 && !areLinesValid()) {
-      setError('Fill all product name and rate fields');
+        setError('fill_product_fields');
       return;
     }
     if (_currentStep == 1 && _selectedFarmer != null) {
       _deductions.advanceAdjusted =
           _selectedFarmer!.advanceBalance.clamp(0, grossTotal);
     }
+    
     if (_currentStep < 3) {
       setError(null);
       _currentStep++;
@@ -627,6 +635,11 @@ class PurchaseController extends ChangeNotifier {
           lines: _lines,
           deductions: _deductions,
         );
+  //       if (erro.errorMessage != null)
+  // Text(
+  //   lang.t(controller.errorMessage!), // Translate the error key
+  //   style: const TextStyle(color: AppColors.error, fontSize: 12),
+  // ),
         // In edit mode, savedPurchaseId = the existing purchase id
         savedPurchaseId = _editingPurchaseId;
       } else {
@@ -717,5 +730,6 @@ class PurchaseController extends ChangeNotifier {
   void setError(String? msg) {
     _errorMessage = msg;
     notifyListeners();
+
   }
 }

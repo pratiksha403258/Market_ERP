@@ -2,8 +2,6 @@
 //  SALE SERVICE
 //  All API calls for Sales module + Profit/Loss
 // ─────────────────────────────────────────────────────────────
-
-import 'package:agr_market/models/profitLoss_model.dart';
 import 'package:agr_market/models/profit_loss_model.dart';
 import 'package:agr_market/models/sale_model.dart';
 import 'package:agr_market/services/constant_service.dart';
@@ -195,66 +193,53 @@ class SaleService {
   ///     "profitMargin": "-368.43%"
   ///   }
   /// }
-  Future<SaleResult<ProfitLossReport>> getProfitLossReport({
-    required DateTime startDate,
-    required DateTime endDate,
-  }) async {
-    try {
-      final start = startDate.toIso8601String().split('T')[0];
-      final end = endDate.toIso8601String().split('T')[0];
+ // ── PROFIT/LOSS REPORT ────────────────────────────────────────
+Future<SaleResult<ProfitLossReport>> getProfitLossReport({
+  required DateTime startDate,
+  required DateTime endDate,
+}) async {
+  try {
+    final start = startDate.toIso8601String().split('T')[0];
+    final end = endDate.toIso8601String().split('T')[0];
 
-      final res = await _dio.get(
-        ApiRoutes.profitLossReport,
-        queryParameters: {'startDate': start, 'endDate': end},
-        options: Options(validateStatus: (s) => true),
-      );
+    final res = await _dio.get(
+      ApiRoutes.profitLossReport,
+      queryParameters: {'startDate': start, 'endDate': end},
+      options: Options(validateStatus: (s) => true),
+    );
 
-      if (res.statusCode == 200) {
-        final body = res.data as Map<String, dynamic>;
-        if (body['success'] == true) {
-          final d = body['data'] as Map<String, dynamic>;
+    if (res.statusCode == 200) {
+      final body = res.data as Map<String, dynamic>;
+      if (body['success'] == true) {
+        final d = body['data'] as Map<String, dynamic>;
 
-          // ── Map actual API fields to ProfitLossReport ──────────
-          final totalSales =
-              (d['totalSales'] as num?)?.toDouble() ?? 0;
-          final totalPurchases =
-              (d['totalPurchases'] as num?)?.toDouble() ?? 0;
-          final totalExpenses =
-              (d['totalExpenses'] as num?)?.toDouble() ?? 0;
-          final grossProfit =
-              (d['grossProfit'] as num?)?.toDouble() ?? 0;
-          final netProfit =
-              (d['netProfit'] as num?)?.toDouble() ?? 0;
-          final profitMargin =
-              d['profitMargin']?.toString() ?? '0%';
-
-          return SaleResult.success(
-            data: ProfitLossReport(
-              periodStart: startDate,
-              periodEnd: endDate,
-              totalSalesRevenue: totalSales,
-              totalGstCollected: 0, // not returned by this endpoint
-              netRevenue: totalSales,
-              totalPurchaseCost: totalPurchases,
-              totalPurchaseDeductions: 0, // not returned by this endpoint
-              totalExpenses: totalExpenses,
-              grossProfit: grossProfit,
-              netProfit: netProfit,
-              profitMargin: profitMargin,
-            ),
-          );
-        }
-        return SaleResult.failure(
-            message: body['message']?.toString() ??
-                'Failed to load P&L report');
+        return SaleResult.success(
+          data: ProfitLossReport(
+            totalSales: (d['totalSales'] as num?)?.toDouble() ?? 0.0,
+            totalGstCollected: 0.0,
+            netRevenue: (d['totalSales'] as num?)?.toDouble() ?? 0.0,
+            totalPurchaseCost: (d['totalPurchases'] as num?)?.toDouble() ?? 0.0,
+            totalPurchaseDeductions: 0.0,
+            totalExpenses: (d['totalExpenses'] as num?)?.toDouble() ?? 0.0,
+            grossProfit: (d['grossProfit'] as num?)?.toDouble() ?? 0.0,
+            netProfit: (d['netProfit'] as num?)?.toDouble() ?? 0.0,
+            profitMargin: d['profitMargin']?.toString() ?? '0%',
+            periodStart: startDate,
+            periodEnd: endDate,
+          ),
+        );
       }
-
       return SaleResult.failure(
-          message: 'Server error (${res.statusCode})');
-    } on DioException catch (e) {
-      return SaleResult.failure(message: _parseError(e));
+        message: body['message']?.toString() ?? 'Failed to load P&L report'
+      );
     }
+    return SaleResult.failure(
+      message: 'Server error (${res.statusCode})'
+    );
+  } on DioException catch (e) {
+    return SaleResult.failure(message: _parseError(e));
   }
+}
 
   // ── Helpers ───────────────────────────────────────────────────
   String _parseError(DioException e) {

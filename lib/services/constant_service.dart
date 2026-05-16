@@ -4,7 +4,8 @@ class AppConstants {
 
   // static const String baseUrl = 'http://192.168.1.15:5001/api';
   // static const String baseUrl = 'http://192.168.1.8:5001/api';
-  static const baseUrl = "https://codiantsolutions.com/api/agri_tred/api";
+   static const baseUrl = "https://codiantsolutions.com/api/agri_tred/api";
+  // static const baseUrl= "http://192.168.1.42:5001/api";
 
   static const String keyAccessToken = 'access_token';
   static const String keyRefreshToken = 'refresh_token';
@@ -103,11 +104,14 @@ class ApiRoutes {
   static const String buyers = '/buyers';
   static String buyerById(String id) => '/buyers/$id';
   static const String buyersSummary = '/buyers/summary';
-
-  static const String products = '/products';
-
-  static const String allBuyersLedger = '/ledger/all/buyers';
+   static const String allBuyersLedger = '/ledger/all/buyers';
   static String buyerLedger(String id) => '/ledger/buyer/$id'; 
+
+//product
+  static const String products = '/products';
+  static String productById(String id) => '/products/$id';
+
+
 
   static Null get baseUrl => null;
 }

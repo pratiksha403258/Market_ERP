@@ -1,4 +1,6 @@
 import 'package:agr_market/features/auth/screens/language_selection_screen.dart';
+import 'package:agr_market/providers/product_provider.dart';
+import 'package:agr_market/purchase/purchase_list_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -20,6 +22,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => LanguageProvider()),
         ChangeNotifierProvider(create: (_) => FarmerProvider()),  
+        ChangeNotifierProvider(create: (_) => ProductProvider()),
         
       ],
       child: const MarketErpApp(),
@@ -43,7 +46,7 @@ class MarketErpApp extends StatelessWidget {
         '/language':  (_) => const LanguageSelectionScreen(),
         '/home':      (_) => const MainNavigationScreen(),
         '/register':  (_) => const RegisterScreen(),
-
+   '/purchases': (_) => const PurchaseListScreen(),  // ADD THIS LINE
       },
     );
   }

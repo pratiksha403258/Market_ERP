@@ -627,7 +627,7 @@ class _OperatorLedgerDetailScreenState extends State<OperatorLedgerDetailScreen>
       content: Text(msg, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13)),
       backgroundColor: isError ? Colors.red : Colors.green,
       behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(left: 6, right: 6, bottom: 2),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ));
   }

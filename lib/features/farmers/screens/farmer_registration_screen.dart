@@ -99,7 +99,7 @@ class _FarmerRegistrationScreenState extends State<FarmerRegistrationScreen>
           ),
           backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(16),
+          margin: const EdgeInsets.only(left: 6, right: 6, bottom: 2),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           duration: const Duration(seconds: 2),
         ),
@@ -114,7 +114,7 @@ class _FarmerRegistrationScreenState extends State<FarmerRegistrationScreen>
           ),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(16),
+          margin: const EdgeInsets.only(left: 6, right: 6, bottom: 2),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
@@ -161,7 +161,7 @@ void _showFieldError(String field) {
       content: Text(message, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13)),
       backgroundColor: AppColors.error,
       behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(left: 4, right: 4, bottom: 2),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ),
   );
@@ -257,7 +257,7 @@ Widget build(BuildContext context) {
           child: SingleChildScrollView(
             child: Column(
               children: [
-                SizedBox(height: size.height * 0.24),
+                SizedBox(height: size.height * 0.12),
                 FadeTransition(
                   opacity: _fadeAnim,
                   child: Container(
@@ -342,7 +342,7 @@ Widget build(BuildContext context) {
                     ),
                   ),
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 24),
               ],
             ),
           ),

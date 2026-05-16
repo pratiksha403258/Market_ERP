@@ -17,12 +17,26 @@ class InventoryItem {
 
   factory InventoryItem.fromJson(Map<String, dynamic> json) {
     return InventoryItem(
-      id: json['_id'] as String,
-      productName: json['productName'] as String,
-      warehouse: json['warehouse'] as String,
-      currentStock: (json['currentStock'] as num).toDouble(),
-      unit: json['unit'] as String,
-      lastUpdated: DateTime.parse(json['lastUpdated'] as String),
+      // ── was: json['_id'] as String  → crashes if null ─────────
+      id: json['_id']?.toString() ?? '',
+
+      // ── was: json['productName'] as String → crashes if missing ─
+      productName: json['productName']?.toString() ?? '',
+
+      // ── was: json['warehouse'] as String → crashes if null ─────
+      warehouse: json['warehouse']?.toString() ?? '',
+
+      // ── was: (json['currentStock'] as num) → crashes if null ───
+      currentStock: (json['currentStock'] as num?)?.toDouble() ?? 0.0,
+
+      // ── was: json['unit'] as String → crashes if null ──────────
+      unit: json['unit']?.toString() ?? 'kg',
+
+      // ── was: DateTime.parse(json['lastUpdated'] as String) ─────
+      //    crashes if lastUpdated is null/missing
+      lastUpdated: json['lastUpdated'] != null
+          ? DateTime.tryParse(json['lastUpdated'].toString()) ?? DateTime.now()
+          : DateTime.now(),
     );
   }
 

@@ -1,11 +1,3 @@
-// lib/ledger/buyer_ledger_details_screen.dart
-//
-// pubspec.yaml dependencies needed:
-//   pdf: ^3.10.8
-//   printing: ^5.12.0
-//   path_provider: ^2.1.2
-//   permission_handler: ^11.3.1
-//   intl: ^0.19.0
 
 import 'dart:io';
 import 'dart:typed_data';

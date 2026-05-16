@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 
 import 'package:agr_market/sales/sales_list_screen.dart';
@@ -5,13 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/colors.dart';
 import '../../../services/sale_service.dart';
-import '../../../services/buyer_service.dart';
-import '../../../models/buyer_model.dart';
-import '../../../services/constant_service.dart';
 import 'package:dio/dio.dart';
 import '../../../services/dio_client.dart';
 
-// ── Dropdown Buyer Model ──────────────────────────────────────
+// ──────────────────────────────────────────────────────────────
+// Dropdown Models & Services
+// ──────────────────────────────────────────────────────────────
+
 class DropdownBuyer {
   final String id;
   final String name;
@@ -42,7 +43,6 @@ class DropdownBuyer {
       );
 }
 
-// ── Buyer Dropdown Service ────────────────────────────────────
 class _BuyerDropdownService {
   static final _dio = DioClient.instance.dio;
 
@@ -71,6 +71,64 @@ class _BuyerDropdownService {
   }
 }
 
+// NEW: Product dropdown model & service
+class DropdownProduct {
+  final String id;
+  final String name;
+
+
+  const DropdownProduct({
+    required this.id,
+    required this.name,
+   
+  });
+
+  factory DropdownProduct.fromJson(Map<String, dynamic> j) => DropdownProduct(
+        id: j['_id']?.toString() ?? j['id']?.toString() ?? '',
+        name: j['productName']?.toString() ?? j['name']?.toString() ?? '',
+        // description: j['description']?.toString() ?? '',
+      );
+}
+
+class _ProductDropdownService {
+  static final _dio = DioClient.instance.dio;
+
+  static Future<List<DropdownProduct>> fetch({String search = '', int limit = 100}) async {
+    try {
+      final params = <String, dynamic>{'limit': limit, 'isActive': true};
+      if (search.isNotEmpty) params['search'] = search;
+
+      final res = await _dio.get(
+        '/products', // uses ApiRoutes.products
+        queryParameters: params,
+        options: Options(validateStatus: (_) => true),
+      );
+
+      if (res.statusCode == 200) {
+        final body = res.data as Map<String, dynamic>;
+        // Assuming API returns { success: true, data: [...] }
+        if (body['success'] == true) {
+          final list = body['data'] as List? ?? [];
+          return list
+              .map((e) => DropdownProduct.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+        // Fallback if response is a direct array
+        if (body['data'] == null && body is List) {
+          // return body
+              // .map((e) => DropdownProduct.fromJson(e as Map<String, dynamic>))
+              // .toList();
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// SaleCreateScreen (main widget)
+// ──────────────────────────────────────────────────────────────
+
 class SaleCreateScreen extends StatefulWidget {
   const SaleCreateScreen({super.key});
 
@@ -85,25 +143,34 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
   static const _stepLabels = ['Buyer', 'Product', 'Deductions', 'Review'];
 
   // ── Step 0: Buyer ─────────────────────────────────────────────
-  // Dropdown state
   List<DropdownBuyer> _allBuyers = [];
   List<DropdownBuyer> _filteredBuyers = [];
   bool _buyersLoading = false;
-  bool _showDropdown = false;
+  bool _showBuyerDropdown = false;
   DropdownBuyer? _selectedBuyer;
   static const int _initialVisibleCount = 5;
-  int _visibleCount = _initialVisibleCount;
+  int _buyerVisibleCount = _initialVisibleCount;
   final _buyerSearchCtrl = TextEditingController();
   final _buyerSearchFocus = FocusNode();
 
-  // Manual fields (auto-filled when buyer selected, or typed manually)
   final _buyerNameCtrl = TextEditingController();
   final _buyerMobileCtrl = TextEditingController();
   final _buyerGstCtrl = TextEditingController();
   final _buyerAddressCtrl = TextEditingController();
 
   // ── Step 1: Product ───────────────────────────────────────────
+  // NEW: Product dropdown state
+  List<DropdownProduct> _allProducts = [];
+  List<DropdownProduct> _filteredProducts = [];
+  bool _productsLoading = false;
+  bool _showProductDropdown = false;
+  DropdownProduct? _selectedProduct;
+  int _productVisibleCount = _initialVisibleCount;
+  final _productSearchFocus = FocusNode();
+
+  // The product name controller (existing) will also serve as search input
   final _productNameCtrl = TextEditingController();
+
   String _pricingType = 'kg';
   final _bagsCtrl = TextEditingController();
   final _weightPerBagCtrl = TextEditingController();
@@ -171,14 +238,24 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
       c.addListener(_recalc);
     }
 
+    // Buyer search listeners
     _buyerSearchCtrl.addListener(_onBuyerSearchChanged);
     _buyerSearchFocus.addListener(() {
       if (_buyerSearchFocus.hasFocus && _allBuyers.isNotEmpty) {
-        setState(() => _showDropdown = true);
+        setState(() => _showBuyerDropdown = true);
+      }
+    });
+
+    // NEW: Product search listeners
+    _productNameCtrl.addListener(_onProductSearchChanged);
+    _productSearchFocus.addListener(() {
+      if (_productSearchFocus.hasFocus && _allProducts.isNotEmpty) {
+        setState(() => _showProductDropdown = true);
       }
     });
 
     _loadBuyers();
+    _loadProducts(); // Load product master
   }
 
   // ── Buyer Dropdown Logic ──────────────────────────────────────
@@ -189,7 +266,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
       setState(() {
         _allBuyers = buyers;
         _filteredBuyers = buyers;
-        _visibleCount = _initialVisibleCount;
+        _buyerVisibleCount = _initialVisibleCount;
         _buyersLoading = false;
       });
     }
@@ -198,8 +275,8 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
   void _onBuyerSearchChanged() {
     final query = _buyerSearchCtrl.text.trim().toLowerCase();
     setState(() {
-      _showDropdown = true;
-      _visibleCount = _initialVisibleCount;
+      _showBuyerDropdown = true;
+      _buyerVisibleCount = _initialVisibleCount;
       if (query.isEmpty) {
         _filteredBuyers = _allBuyers;
       } else {
@@ -216,9 +293,8 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
   void _selectBuyer(DropdownBuyer buyer) {
     setState(() {
       _selectedBuyer = buyer;
-      _showDropdown = false;
+      _showBuyerDropdown = false;
       _buyerSearchCtrl.text = buyer.displayName;
-      // Auto-fill fields
       _buyerNameCtrl.text = buyer.name;
       _buyerMobileCtrl.text = buyer.mobile;
       _buyerAddressCtrl.text = buyer.fullAddress;
@@ -235,7 +311,55 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
       _buyerMobileCtrl.clear();
       _buyerAddressCtrl.clear();
       _buyerGstCtrl.clear();
-      _showDropdown = false;
+      _showBuyerDropdown = false;
+    });
+  }
+
+  // ── NEW: Product Dropdown Logic ───────────────────────────────
+  Future<void> _loadProducts({String search = ''}) async {
+    setState(() => _productsLoading = true);
+    final products = await _ProductDropdownService.fetch(search: search);
+    if (mounted) {
+      setState(() {
+        _allProducts = products;
+        _filteredProducts = products;
+        _productVisibleCount = _initialVisibleCount;
+        _productsLoading = false;
+      });
+    }
+  }
+
+  void _onProductSearchChanged() {
+    final query = _productNameCtrl.text.trim().toLowerCase();
+    setState(() {
+      _showProductDropdown = true;
+      _productVisibleCount = _initialVisibleCount;
+      if (query.isEmpty) {
+        _filteredProducts = _allProducts;
+      } else {
+        _filteredProducts = _allProducts.where((p) {
+          return p.name.toLowerCase().contains(query) ;
+              // p.description.toLowerCase().contains(query);
+         }).toList();
+      }
+    });
+  }
+
+  void _selectProduct(DropdownProduct product) {
+    setState(() {
+      _selectedProduct = product;
+      _showProductDropdown = false;
+      // Auto-fill product name (can still be edited manually)
+      _productNameCtrl.text = product.name;
+    });
+    _productSearchFocus.unfocus();
+  }
+
+  void _clearProductSelection() {
+    setState(() {
+      _selectedProduct = null;
+      _productNameCtrl.clear();
+      _showProductDropdown = false;
     });
   }
 
@@ -246,9 +370,11 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     _animCtrl.dispose();
     _buyerSearchCtrl.dispose();
     _buyerSearchFocus.dispose();
+    _productNameCtrl.dispose();
+    _productSearchFocus.dispose();
     for (final c in [
       _buyerNameCtrl, _buyerMobileCtrl, _buyerGstCtrl, _buyerAddressCtrl,
-      _productNameCtrl, _bagsCtrl, _weightPerBagCtrl, _qualityDeductionCtrl,
+      _bagsCtrl, _weightPerBagCtrl, _qualityDeductionCtrl,
       _rateCtrl, _productNotesCtrl, _transportCtrl, _labourCtrl,
       _commissionCtrl, _storageCtrl, _advanceAdjustedCtrl, _otherCtrl,
       _notesCtrl,
@@ -396,18 +522,13 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     }
   }
 
-  String _fmtMoney(double v) {
-    if (v >= 100000) return '₹${(v / 100000).toStringAsFixed(1)}L';
-    if (v >= 1000) return '₹${(v / 1000).toStringAsFixed(1)}K';
-    return '₹${v.toStringAsFixed(2)}';
-  }
-
   // ── BUILD ─────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        if (_showDropdown) setState(() => _showDropdown = false);
+        if (_showBuyerDropdown) setState(() => _showBuyerDropdown = false);
+        if (_showProductDropdown) setState(() => _showProductDropdown = false);
         FocusScope.of(context).unfocus();
       },
       child: Scaffold(
@@ -682,10 +803,10 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     }
   }
 
-  // ── STEP 0 — Buyer Info ───────────────────────────────────────
+  // ── STEP 0 — Buyer Info (unchanged except variable rename) ─────
   Widget _buildStep0Buyer() {
-    final visible = _filteredBuyers.take(_visibleCount).toList();
-    final hasMore = _filteredBuyers.length > _visibleCount;
+    final visible = _filteredBuyers.take(_buyerVisibleCount).toList();
+    final hasMore = _filteredBuyers.length > _buyerVisibleCount;
 
     return Column(
       key: const ValueKey('s0'),
@@ -693,8 +814,6 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
       children: [
         _stepHeader('Buyer Details', 'Search or select a buyer'),
         const SizedBox(height: 20),
-
-        // ── Buyer Search / Dropdown ──────────────────────────────
         const Text('Buyer *',
             style: TextStyle(
                 fontSize: 12,
@@ -702,8 +821,6 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                 color: AppColors.textPrimary,
                 fontFamily: 'Poppins')),
         const SizedBox(height: 4),
-
-        // Search field
         TextFormField(
           controller: _buyerSearchCtrl,
           focusNode: _buyerSearchFocus,
@@ -752,12 +869,10 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                 borderSide: const BorderSide(
                     color: AppColors.primary, width: 1.5)),
           ),
-          onTap: () => setState(() => _showDropdown = true),
-          onChanged: (_) => setState(() => _showDropdown = true),
+          onTap: () => setState(() => _showBuyerDropdown = true),
+          onChanged: (_) => setState(() => _showBuyerDropdown = true),
         ),
-
-        // ── Dropdown List ────────────────────────────────────────
-        if (_showDropdown) ...[
+        if (_showBuyerDropdown) ...[
           const SizedBox(height: 4),
           Container(
             decoration: BoxDecoration(
@@ -801,15 +916,14 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                     : Column(
                         children: [
                           ...visible.map((b) => _buildBuyerTile(b)),
-                          // Show More / Show Less
-                          if (hasMore || _visibleCount > _initialVisibleCount)
+                          if (hasMore || _buyerVisibleCount > _initialVisibleCount)
                             InkWell(
                               onTap: () {
                                 setState(() {
                                   if (hasMore) {
-                                    _visibleCount += _initialVisibleCount;
+                                    _buyerVisibleCount += _initialVisibleCount;
                                   } else {
-                                    _visibleCount = _initialVisibleCount;
+                                    _buyerVisibleCount = _initialVisibleCount;
                                   }
                                 });
                               },
@@ -837,7 +951,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                                       const SizedBox(width: 4),
                                       Text(
                                         hasMore
-                                            ? 'Show ${(_filteredBuyers.length - _visibleCount).clamp(0, _initialVisibleCount)} more'
+                                            ? 'Show ${(_filteredBuyers.length - _buyerVisibleCount).clamp(0, _initialVisibleCount)} more'
                                             : 'Show less',
                                         style: const TextStyle(
                                             fontSize: 12,
@@ -852,9 +966,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                       ),
           ),
         ],
-
-        // ── Selected buyer chip ──────────────────────────────────
-        if (_selectedBuyer != null && !_showDropdown) ...[
+        if (_selectedBuyer != null && !_showBuyerDropdown) ...[
           const SizedBox(height: 8),
           Container(
             padding:
@@ -899,10 +1011,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
             ]),
           ),
         ],
-
         const SizedBox(height: 16),
-
-        // ── Divider with "or enter manually" ────────────────────
         Row(children: [
           const Expanded(child: Divider(color: AppColors.divider)),
           Padding(
@@ -919,10 +1028,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
           ),
           const Expanded(child: Divider(color: AppColors.divider)),
         ]),
-
         const SizedBox(height: 14),
-
-        // ── Manual / Auto-filled fields ──────────────────────────
         _field('Buyer Name *', _buyerNameCtrl,
             hint: 'e.g. Ramesh Trading Co.',
             icon: Icons.person_outline_rounded,
@@ -1022,21 +1128,220 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     );
   }
 
-  // ── STEP 1 — Product ──────────────────────────────────────────
+  // ── STEP 1 — Product (with product dropdown) ───────────────────
   Widget _buildStep1Product() {
+    final visible = _filteredProducts.take(_productVisibleCount).toList();
+    final hasMore = _filteredProducts.length > _productVisibleCount;
+
     return Column(
       key: const ValueKey('s1'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _stepHeader('Product Details', 'Enter weight & rate'),
         const SizedBox(height: 20),
-        _field('Product Name *', _productNameCtrl,
-            hint: 'e.g. Wheat',
-            icon: Icons.eco_outlined,
-            caps: TextCapitalization.words),
-        const SizedBox(height: 14),
 
-        // Pricing type selector
+        // Product name field with dropdown
+        const Text('Product Name *',
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+                fontFamily: 'Poppins')),
+        const SizedBox(height: 4),
+        TextFormField(
+          controller: _productNameCtrl,
+          focusNode: _productSearchFocus,
+          style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textPrimary,
+              fontFamily: 'Poppins'),
+          decoration: InputDecoration(
+            hintText: 'Search or type product name…',
+            hintStyle:
+                const TextStyle(color: AppColors.textHint, fontSize: 13),
+            prefixIcon: const Icon(Icons.search_rounded,
+                color: AppColors.textHint, size: 18),
+            suffixIcon: _selectedProduct != null
+                ? GestureDetector(
+                    onTap: _clearProductSelection,
+                    child: const Icon(Icons.close_rounded,
+                        color: AppColors.textHint, size: 18),
+                  )
+                : _productsLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary),
+                        ),
+                      )
+                    : null,
+            filled: true,
+            fillColor: AppColors.surfaceVariant,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(
+                    color: AppColors.primary, width: 1.5)),
+          ),
+          onTap: () => setState(() => _showProductDropdown = true),
+          onChanged: (_) => setState(() => _showProductDropdown = true),
+        ),
+
+        if (_showProductDropdown) ...[
+          const SizedBox(height: 4),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: _productsLoading && _allProducts.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.primary),
+                    ),
+                  )
+                : visible.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(children: [
+                          const Icon(Icons.search_off_rounded,
+                              color: AppColors.textHint, size: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            _productNameCtrl.text.isEmpty
+                                ? 'No products found'
+                                : 'No match for "${_productNameCtrl.text}"',
+                            style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                                fontFamily: 'Poppins'),
+                          ),
+                        ]),
+                      )
+                    : Column(
+                        children: [
+                          ...visible.map((p) => _buildProductTile(p)),
+                          if (hasMore || _productVisibleCount > _initialVisibleCount)
+                            InkWell(
+                              onTap: () {
+                                setState(() {
+                                  if (hasMore) {
+                                    _productVisibleCount += _initialVisibleCount;
+                                  } else {
+                                    _productVisibleCount = _initialVisibleCount;
+                                  }
+                                });
+                              },
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 10, horizontal: 14),
+                                decoration: const BoxDecoration(
+                                  border: Border(
+                                      top: BorderSide(
+                                          color: AppColors.divider)),
+                                ),
+                                child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        hasMore
+                                            ? Icons.expand_more_rounded
+                                            : Icons
+                                                .expand_less_rounded,
+                                        size: 16,
+                                        color: AppColors.primary,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        hasMore
+                                            ? 'Show ${(_filteredProducts.length - _productVisibleCount).clamp(0, _initialVisibleCount)} more'
+                                            : 'Show less',
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.w600,
+                                            fontFamily: 'Poppins'),
+                                      ),
+                                    ]),
+                              ),
+                            ),
+                        ],
+                      ),
+          ),
+        ],
+
+        // Selected product chip (optional)
+        if (_selectedProduct != null && !_showProductDropdown) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+            ),
+            child: Row(children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.production_quantity_limits,
+                    color: Colors.white, size: 16),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_selectedProduct!.name,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primaryDark,
+                              fontFamily: 'Poppins')),
+                      // if (_selectedProduct!.description.isNotEmpty)
+                      //   Text(_selectedProduct!.description,
+                      //       style: const TextStyle(
+                                // fontSize: 11,
+                                // color: AppColors.textSecondary,
+                                // fontFamily: 'Poppins')),
+                    ]),
+              ),
+              const Icon(Icons.check_circle_rounded,
+                  color: AppColors.success, size: 18),
+            ]),
+          ),
+        ],
+
+        const SizedBox(height: 16),
+        // Rest of the product fields unchanged...
         const Text('Pricing Type',
             style: TextStyle(
                 fontSize: 12,
@@ -1080,9 +1385,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
             }).toList(),
           ),
         ),
-
         const SizedBox(height: 14),
-
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
             child: _field('Bags *', _bagsCtrl,
@@ -1104,9 +1407,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                 ]),
           ),
         ]),
-
         const SizedBox(height: 12),
-
         if (_actualQty > 0)
           Container(
             padding:
@@ -1132,9 +1433,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                       fontFamily: 'Poppins')),
             ]),
           ),
-
         const SizedBox(height: 12),
-
         _field(
             'Quality Deduction (${_pricingType == 'quintal' ? 'qtl' : 'kg'})',
             _qualityDeductionCtrl,
@@ -1144,9 +1443,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
             formatters: [
               FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
             ]),
-
         const SizedBox(height: 12),
-
         _field(
             'Rate per ${_pricingType == 'quintal' ? 'qtl' : 'kg'} (₹) *',
             _rateCtrl,
@@ -1156,12 +1453,9 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
             formatters: [
               FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
             ]),
-
         const SizedBox(height: 12),
-
         _multiLineField('Product Notes (optional)', _productNotesCtrl,
             hint: 'e.g. Premium quality...'),
-
         if (_grossTotal > 0) ...[
           const SizedBox(height: 16),
           Container(
@@ -1192,6 +1486,76 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     );
   }
 
+  Widget _buildProductTile(DropdownProduct product) {
+    final isSelected = _selectedProduct?.id == product.id;
+    return InkWell(
+      onTap: () => _selectProduct(product),
+      borderRadius: BorderRadius.circular(0),
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primarySurface
+              : Colors.transparent,
+          border: const Border(
+              bottom: BorderSide(color: AppColors.divider, width: 0.5)),
+        ),
+        child: Row(children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppColors.primary
+                  : AppColors.surfaceVariant,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Center(
+              child: Text(
+                product.name.isNotEmpty
+                    ? product.name[0].toUpperCase()
+                    : '?',
+                style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: isSelected
+                        ? Colors.white
+                        : AppColors.textSecondary),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(product.name,
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected
+                              ? AppColors.primaryDark
+                              : AppColors.textPrimary,
+                          fontFamily: 'Poppins')),
+                  // if (product.description.isNotEmpty)
+                  //   Text(product.description,
+                  //       style: const TextStyle(
+                  //           fontSize: 11,
+                  //           color: AppColors.textSecondary,
+                  //           fontFamily: 'Poppins')),
+                ]),
+          ),
+          if (isSelected)
+            const Icon(Icons.check_rounded,
+                color: AppColors.primary, size: 16),
+        ]),
+      ),
+    );
+  }
+
   Widget _calcRow(String label, double value,
       {bool large = false,
       String prefix = '',
@@ -1213,7 +1577,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     ]);
   }
 
-  // ── STEP 2 — Deductions ───────────────────────────────────────
+  // ── STEP 2 — Deductions (unchanged) ───────────────────────────
   Widget _buildStep2Deductions() {
     return Column(
       key: const ValueKey('s2'),
@@ -1221,7 +1585,6 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
       children: [
         _stepHeader('Deductions', 'Enter charges & adjustments'),
         const SizedBox(height: 16),
-
         Container(
           padding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -1245,7 +1608,6 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                     fontFamily: 'Poppins')),
           ]),
         ),
-
         const SizedBox(height: 14),
         _field('Transport (₹)', _transportCtrl,
             hint: '0',
@@ -1263,7 +1625,6 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
               FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
             ]),
         const SizedBox(height: 10),
-
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Expanded(
             flex: 3,
@@ -1316,7 +1677,6 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
             ),
           ),
         ]),
-
         const SizedBox(height: 10),
         _field('Storage (₹)', _storageCtrl,
             hint: '0',
@@ -1341,7 +1701,6 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
             formatters: [
               FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
             ]),
-
         if (_grossTotal > 0) ...[
           const SizedBox(height: 16),
           Container(
@@ -1360,7 +1719,6 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
             ]),
           ),
         ],
-
         const SizedBox(height: 12),
         _multiLineField('Sale Notes (optional)', _notesCtrl,
             hint: 'Any remarks about this sale...'),
@@ -1390,7 +1748,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     );
   }
 
-  // ── STEP 3 — Review ───────────────────────────────────────────
+  // ── STEP 3 — Review (unchanged) ───────────────────────────────
   Widget _buildStep3Review() {
     return Column(
       key: const ValueKey('s3'),
@@ -1398,7 +1756,6 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
       children: [
         _stepHeader('Review Sale', 'Confirm before creating'),
         const SizedBox(height: 16),
-
         _reviewSection('Buyer', [
           _reviewRow('Name', _buyerNameCtrl.text.trim()),
           if (_buyerMobileCtrl.text.trim().isNotEmpty)
@@ -1408,9 +1765,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
           if (_buyerAddressCtrl.text.trim().isNotEmpty)
             _reviewRow('Address', _buyerAddressCtrl.text.trim()),
         ], Icons.person_outline_rounded),
-
         const SizedBox(height: 12),
-
         _reviewSection('Product', [
           _reviewRow('Name', _productNameCtrl.text.trim()),
           _reviewRow('Pricing Type', _pricingType.toUpperCase()),
@@ -1427,9 +1782,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
           _reviewRow('Rate',
               '₹${_rate.toStringAsFixed(2)}/${_pricingType == 'quintal' ? 'qtl' : 'kg'}'),
         ], Icons.eco_outlined),
-
         const SizedBox(height: 12),
-
         if (_totalDeductions > 0)
           _reviewSection('Deductions', [
             if (_transport > 0)
@@ -1452,9 +1805,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
             _reviewRow(
                 'Total Ded.', '₹${_totalDeductions.toStringAsFixed(2)}'),
           ], Icons.remove_circle_outline),
-
         const SizedBox(height: 12),
-
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -1470,7 +1821,6 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                 large: true, prefix: '₹'),
           ]),
         ),
-
         if (_notesCtrl.text.trim().isNotEmpty) ...[
           const SizedBox(height: 12),
           _reviewSection('Notes', [
@@ -1536,7 +1886,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     );
   }
 
-  // ── Shared input widgets ──────────────────────────────────────
+  // ── Shared widgets ──────────────────────────────────────────────
   Widget _stepHeader(String title, String sub) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

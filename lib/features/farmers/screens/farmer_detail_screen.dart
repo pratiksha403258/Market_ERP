@@ -6,25 +6,6 @@ import '../../../models/farmer_model.dart';
 import '../../../services/dio_client.dart';
 import '../../../services/constant_service.dart';
 
-// ─────────────────────────────────────────────────────────────
-//  FARMER DETAIL SCREEN
-//  Tabs: Overview | Dues | Advances
-//
-//  ROOT CAUSE OF BUGS FIXED:
-//  1. _loadFarmer() was not correctly unwrapping the API response.
-//     Backend returns: { success: true, data: { farmer: {...} } }
-//     The old code tried `data['farmer']` on the TOP level object,
-//     not on `data['data']`.
-//
-//  2. FarmerModel.fromJson() was not handling all backend field names.
-//     Backend uses camelCase but field names differ between list
-//     and detail endpoints.
-//
-//  3. _EditFarmerSheet controllers were initialized from the farmer
-//     object — so if farmer parsing was broken, fields showed empty.
-//     Now fixed via correct parsing above.
-// ─────────────────────────────────────────────────────────────
-
 class FarmerDetailScreen extends StatefulWidget {
   final String farmerId;
   final String farmerName;
@@ -392,7 +373,7 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
           style: const TextStyle(fontFamily: 'Poppins', fontSize: 13)),
       backgroundColor: AppColors.error,
       behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(left: 6, right: 6, bottom: 2),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ));
   }
@@ -505,161 +486,122 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
     );
   }
 
-  Widget _buildSliverAppBar(bool innerBoxIsScrolled) {
-    final farmer = _farmer;
-    return SliverAppBar(
-      expandedHeight: 200,
-      pinned: true,
-      backgroundColor: AppColors.primary,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-        onPressed: () => Navigator.pop(context, _changed),
-      ),
-      actions: [
-        if (farmer != null && farmer.isActive)
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            onSelected: (v) {
-              if (v == 'edit') _showEditSheet();
-              if (v == 'deactivate') _deactivateFarmer();
-            },
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'edit',
-                child: Row(children: [
-                  Icon(Icons.edit_outlined,
-                      size: 18, color: AppColors.textPrimary),
-                  SizedBox(width: 10),
-                  Text('Edit Farmer',
-                      style: TextStyle(fontFamily: 'Poppins', fontSize: 13)),
-                ]),
-              ),
-              const PopupMenuItem(
-                value: 'deactivate',
-                child: Row(children: [
-                  Icon(Icons.block_rounded, size: 18, color: AppColors.error),
-                  SizedBox(width: 10),
-                  Text('Deactivate',
-                      style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 13,
-                          color: AppColors.error)),
-                ]),
-              ),
-            ],
-          ),
-      ],
-      flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          decoration: const BoxDecoration(gradient: AppColors.heroGradient),
-          child: SafeArea(
-            child: _loadingFarmer
-                ? const Center(
-                    child: CircularProgressIndicator(color: Colors.white))
-                : Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 56, 20, 0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 72,
-                          height: 72,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.25),
-                            shape: BoxShape.circle,
+Widget _buildSliverAppBar(bool innerBoxIsScrolled) {
+  final farmer = _farmer;
+  return SliverAppBar(
+    expandedHeight: 200,
+    pinned: true,
+    backgroundColor: AppColors.primary,
+    leading: IconButton(
+      icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+      onPressed: () => Navigator.pop(context, _changed),
+    ),
+    actions: [
+      if (farmer != null && farmer.isActive)
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          onSelected: (v) {
+            if (v == 'edit') _showEditSheet();
+            if (v == 'deactivate') _deactivateFarmer();
+          },
+          itemBuilder: (_) => [
+            const PopupMenuItem(
+              value: 'edit',
+              child: Row(children: [
+                Icon(Icons.edit_outlined,
+                    size: 18, color: AppColors.textPrimary),
+                SizedBox(width: 10),
+                Text('Edit Farmer',
+                    style: TextStyle(fontFamily: 'Poppins', fontSize: 13)),
+              ]),
+            ),
+            const PopupMenuItem(
+              value: 'deactivate',
+              child: Row(children: [
+                Icon(Icons.block_rounded, size: 18, color: AppColors.error),
+                SizedBox(width: 10),
+                Text('Deactivate',
+                    style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 13,
+                        color: AppColors.error)),
+              ]),
+            ),
+          ],
+        ),
+    ],
+    flexibleSpace: FlexibleSpaceBar(
+      background: Container(
+        decoration: const BoxDecoration(gradient: AppColors.heroGradient),
+        child: SafeArea(
+          child: _loadingFarmer
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.white))
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 56, 20, 0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.25),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            farmer?.initials ?? '?',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 26,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: 'Poppins'),
                           ),
-                          child: Center(
-                            child: Text(
-                              farmer?.initials ?? '?',
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w700,
-                                  fontFamily: 'Poppins'),
-                            ),
-                          ),
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          farmer?.name ?? widget.farmerName,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              fontFamily: 'Poppins'),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              farmer?.mobile ?? '',
-                              style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 13,
-                                  fontFamily: 'Poppins'),
-                            ),
-                            if (farmer != null) ...[
-                              const SizedBox(width: 10),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: farmer.isActive
-                                      ? Colors.green.withOpacity(0.3)
-                                      : Colors.red.withOpacity(0.3),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: farmer.isActive
-                                        ? Colors.green
-                                        : Colors.red,
-                                    width: 0.5,
-                                  ),
-                                ),
-                                child: Text(
-                                  farmer.isActive ? 'Active' : 'Inactive',
-                                  style: TextStyle(
-                                      color: farmer.isActive
-                                          ? Colors.greenAccent
-                                          : Colors.redAccent,
-                                      fontSize: 10,
-                                      fontFamily: 'Poppins',
-                                      fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 10),
+                      // Only showing the name now - removed mobile number and status badge
+                      Text(
+                        farmer?.name ?? widget.farmerName,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Poppins'),
+                        textAlign: TextAlign.center,
+                      ),
+                      // Removed the Row with mobile number and status badge
+                    ],
                   ),
-          ),
+                ),
         ),
       ),
-      bottom: TabBar(
-        controller: _tabController,
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        indicatorColor: Colors.white,
-        indicatorWeight: 2.5,
-        labelColor: Colors.white,
-        unselectedLabelColor: Colors.white60,
-        labelStyle: const TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: 13,
-            fontWeight: FontWeight.w600),
-        unselectedLabelStyle:
-            const TextStyle(fontFamily: 'Poppins', fontSize: 13),
-        tabs: const [
-          Tab(text: 'Overview'),
-          Tab(text: 'Dues'),
-          Tab(text: 'Advances'),
-        ],
-      ),
-    );
-  }
+    ),
+    bottom: TabBar(
+      controller: _tabController,
+      isScrollable: true,
+      tabAlignment: TabAlignment.start,
+      indicatorColor: Colors.white,
+      indicatorWeight: 2.5,
+      labelColor: Colors.white,
+      unselectedLabelColor: Colors.white60,
+      labelStyle: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 13,
+          fontWeight: FontWeight.w600),
+      unselectedLabelStyle:
+          const TextStyle(fontFamily: 'Poppins', fontSize: 13),
+      tabs: const [
+        Tab(text: 'Overview'),
+        Tab(text: 'Dues'),
+        Tab(text: 'Advances'),
+      ],
+    ),
+  );
+}
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -924,7 +866,7 @@ class _DuesTab extends StatelessWidget {
 
     return Column(children: [
       Container(
-        margin: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(left: 6, right: 6, bottom: 2),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: AppColors.warningSurface,
@@ -1057,7 +999,7 @@ class _AdvanceTab extends StatelessWidget {
 
     return Column(children: [
       Container(
-        margin: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(left: 6, right: 6, bottom: 2),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           gradient: AppColors.heroGradient,

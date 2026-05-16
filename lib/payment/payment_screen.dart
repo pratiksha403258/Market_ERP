@@ -121,7 +121,7 @@
 //         content: Text(message, style: const TextStyle(fontFamily: 'Poppins')),
 //         backgroundColor: isError ? AppColors.error : AppColors.success,
 //         behavior: SnackBarBehavior.floating,
-//         margin: const EdgeInsets.all(16),
+//         margin: const EdgeInsets.only(left: 6, right: 6, bottom: 2),
 //         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
 //       ),
 //     );
@@ -737,7 +737,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       content: Text(msg, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13)),
       backgroundColor: isError ? AppColors.error : AppColors.success,
       behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(left: 6, right: 6, bottom: 2),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ));
   }
