@@ -230,36 +230,36 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  // ── Primary (Lime / Olive Green) ─────────────────────────────
-  static const Color primary        = Color(0xFF7CB518);  // Fresh lime green
-  static const Color primaryLight   = Color(0xFFA4D65E);  // Light lime
-  static const Color primaryDark    = Color(0xFF5A8A0E);  // Deep olive
-  static const Color primarySurface = Color(0xFFF0F8E3);  // Lightest green tint
+  // ── Primary ──────────────────────────────────────────────────
+  static const Color primary        = Color(0xFF3A6B1A);
+  static const Color primaryLight   = Color(0xFF5A8F2E);
+  static const Color primaryDark    = Color(0xFF2A4F10);
+  static const Color primarySurface = Color(0xFFEDF3E6);
 
   // ── Gradient ─────────────────────────────────────────────────
   static const LinearGradient primaryGradient = LinearGradient(
-    colors: [Color(0xFF7CB518), Color(0xFF5A8A0E)],
+    colors: [Color(0xFF4A7C22), Color(0xFF2A4F10)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient heroGradient = LinearGradient(
-    colors: [Color(0xFF8DC63F), Color(0xFF5A8A0E)],
+    colors: [Color(0xFF4A7C22), Color(0xFF2A4F10)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   // ── Background / Surface ─────────────────────────────────────
-  static const Color background      = Color(0xFFF8FAF4);  // Warm white-green
-  static const Color surface         = Color(0xFFFFFFFF);
-  static const Color surfaceVariant  = Color(0xFFF3F7EC);  // Field card bg
-  static const Color cardBackground  = Color(0xFFFFFFFF);
+  static const Color background     = Color(0xFFF8FAF4);
+  static const Color surface        = Color(0xFFFFFFFF);
+  static const Color surfaceVariant = Color(0xFFF3F7EC);
+  static const Color cardBackground = Color(0xFFFFFFFF);
 
   // ── Text ─────────────────────────────────────────────────────
-  static const Color textPrimary    = Color(0xFF1C2A0E);   // Deep forest
-  static const Color textSecondary  = Color(0xFF4A6024);   // Olive text
-  static const Color textHint       = Color(0xFF8FAB6A);   // Muted green-grey
-  static const Color textOnPrimary  = Color(0xFFFFFFFF);
+  static const Color textPrimary   = Color(0xFF1C2A0E);   // ← was missing
+  static const Color textSecondary = Color(0xFF3A6B1A);
+  static const Color textHint      = Color(0xFF7A9B6A);
+  static const Color textOnPrimary = Color(0xFFFFFFFF);   // ← was missing
 
   // ── Semantic ─────────────────────────────────────────────────
   static const Color success        = Color(0xFF2E7D32);
@@ -272,17 +272,17 @@ class AppColors {
   static const Color infoSurface    = Color(0xFFE3F2FD);
 
   // ── Accent / Secondary ───────────────────────────────────────
-  static const Color secondary      = Color(0xFFE8A000);   // Golden wheat
-  static const Color secondarySurf  = Color(0xFFFFF8E1);
+  static const Color secondary     = Color(0xFFE8A000);
+  static const Color secondarySurf = Color(0xFFFFF8E1);
 
   // ── Border / Divider ─────────────────────────────────────────
-  static const Color border         = Color(0xFFD5E8B0);
-  static const Color borderFocus    = Color(0xFF7CB518);
-  static const Color divider        = Color(0xFFE8F0D8);
+  static const Color border    = Color(0xFFC5D9A8);
+  static const Color borderFocus = Color(0xFF3A6B1A);
+  static const Color divider   = Color(0xFFDCEAC8);
 
   // ── Shadow ───────────────────────────────────────────────────
-  static const Color shadowLight    = Color(0x147CB518);
-  static const Color shadowMedium   = Color(0x207CB518);
+  static const Color shadowLight  = Color(0x143A6B1A);
+  static const Color shadowMedium = Color(0x203A6B1A);
 }
 
 // ─────────────────────────────────────────────────────────────

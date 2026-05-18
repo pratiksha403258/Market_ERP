@@ -1,4 +1,6 @@
 
+import 'package:agr_market/payment/add_payment_screen.dart';
+import 'package:agr_market/payment/payment_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -10,7 +12,7 @@ import '../../../core/constants/colors.dart';
 import '../../../providers/language_provider.dart';
 import '../../../services/dio_client.dart';
 import '../../../services/constant_service.dart';
-import '../payment/payment_screen.dart';
+import '../payment/Allpayment_screen.dart';
 
 // ─────────────────────────────────────────────────────────────
 //  RECEIPT SCREEN

@@ -1,17 +1,4 @@
-// ─────────────────────────────────────────────────────────────
-//  PAYMENT RECEIPT GENERATOR
-//  Generates HTML receipt matching "Jai Shivrai Trading Co."
-//  receipt design — both English and Marathi.
-//
-//  Usage:
-//    final html = PaymentReceiptGenerator.generate(
-//      payment: paymentModel,
-//      purchaseSummary: purchaseSummaryData,
-//      farmerVillage: 'Sakori',
-//      isMarathi: true,
-//    );
-//    // Then open in WebView or print via url_launcher / printing pkg
-// ─────────────────────────────────────────────────────────────
+
 
 class PaymentReceiptData {
   // Payment fields (from POST /api/payments response or GET /api/payments/{id})

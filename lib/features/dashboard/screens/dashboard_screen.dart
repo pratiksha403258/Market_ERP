@@ -2,10 +2,12 @@
 import 'package:agr_market/buyer/buyer_list_screen.dart';
 import 'package:agr_market/features/auth/screens/profile_screen.dart';
 import 'package:agr_market/features/dashboard/screens/reports_screen.dart';
+import 'package:agr_market/features/farmers/screens/farmer_list_screen.dart';
 import 'package:agr_market/inventory/inventory_list_screen.dart';
 import 'package:agr_market/ledger/ledger_screen.dart';
+import 'package:agr_market/payment/payment_screen.dart';
+import 'package:agr_market/payment/payment_selection_screen.dart';
 import 'package:agr_market/product/product_list_screen.dart';
-// import 'package:agr_market/payment/payment_screen.dart';
 import 'package:agr_market/purchase/purchase_screen.dart';
 import 'package:agr_market/sales/sale_create_screen.dart';
 import 'package:agr_market/services/auth_service.dart';
@@ -17,7 +19,6 @@ import '../../../providers/auth_provider.dart';
 import '../../../providers/language_provider.dart';
 import '../../../services/dio_client.dart';
 import '../../../services/constant_service.dart';
-// import '../../farmers/screens/farmer_registration_screen.dart';
 
 // ── Profit/Loss snapshot ──────────────────────────────────────
 
@@ -52,6 +53,10 @@ class _DashboardData {
   final List<double> weeklyArrivals;
   final _ProfitLossData profitLoss;
 
+  // ── NEW stat card fields ──────────────────────────────────
+  final double totalRevenue;        // from /reports/dashboard or derived
+  final int totalWarehouses;        // from /warehouse
+
   const _DashboardData({
     this.totalFarmers = 0,
     this.todayPurchaseCount = 0,
@@ -62,6 +67,8 @@ class _DashboardData {
     this.recentPurchases = const [],
     this.weeklyArrivals = const [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
     this.profitLoss = const _ProfitLossData(),
+    this.totalRevenue = 0,
+    this.totalWarehouses = 0,
   });
 }
 
@@ -79,6 +86,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _loading = true;
   bool _hasError = false;
   bool _plLoading = true;
+
+  // Loading states for individual stat cards
+  bool _warehouseLoading = true;
 
   @override
   void initState() {
@@ -106,21 +116,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
         date.isBefore(todayEnd);
   }
 
-  // ── P&L loader ───────────────────────────────────────────
- Future<void> _loadProfitLoss() async {
-  try {
-    setState(() => _plLoading = true);
-    final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day, 0, 0, 0);
-    final end = DateTime(now.year, now.month, now.day, 23, 59, 59);
+  // ── Warehouse count loader ─────────────────────────────────
+  Future<void> _loadWarehouseCount() async {
+    try {
+      setState(() => _warehouseLoading = true);
+      final res = await DioClient.instance.dio.get(
+        ApiRoutes.warehouses,
+        queryParameters: {'page': 1, 'limit': 1},
+      );
 
-    final result = await SaleService.instance.getProfitLossReport(
-      startDate: start,
-      endDate: end,
-    );
+      int count = 0;
+      final body = res.data;
+      if (body is Map) {
+        // Try common pagination shapes: { total }, { data, total }, { count }
+        count = (body['total'] as num?)?.toInt() ??
+            (body['count'] as num?)?.toInt() ??
+            (body['data'] is List ? (body['data'] as List).length : 0);
+      } else if (body is List) {
+        count = body.length;
+      }
 
-    if (result.isSuccess && result.data != null) {
-      final pl = result.data!;
       setState(() {
         _data = _DashboardData(
           totalFarmers: _data.totalFarmers,
@@ -131,26 +146,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
           pendingExpenseApprovals: _data.pendingExpenseApprovals,
           recentPurchases: _data.recentPurchases,
           weeklyArrivals: _data.weeklyArrivals,
-          profitLoss: _ProfitLossData(
-            totalSales: pl.totalSales,
-            totalPurchases: pl.totalPurchaseCost,  // Changed from pl.totalPurchases to pl.totalPurchaseCost
-            totalExpenses: pl.totalExpenses,
-            grossProfit: pl.grossProfit,
-            netProfit: pl.netProfit,
-            profitMargin: pl.profitMargin,
-          ),
+          profitLoss: _data.profitLoss,
+          totalRevenue: _data.totalRevenue,
+          totalWarehouses: count,
         );
-        _plLoading = false;
+        _warehouseLoading = false;
       });
-    } else {
-      debugPrint('⚠️ Today P&L failed: ${result.message}');
+    } catch (e) {
+      debugPrint('⚠️ Warehouse count error: $e');
+      setState(() => _warehouseLoading = false);
+    }
+  }
+
+  // ── P&L loader ───────────────────────────────────────────
+  Future<void> _loadProfitLoss() async {
+    try {
+      setState(() => _plLoading = true);
+      final now = DateTime.now();
+      final start = DateTime(now.year, now.month, now.day, 0, 0, 0);
+      final end = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+      final result = await SaleService.instance.getProfitLossReport(
+        startDate: start,
+        endDate: end,
+      );
+
+      if (result.isSuccess && result.data != null) {
+        final pl = result.data!;
+        setState(() {
+          _data = _DashboardData(
+            totalFarmers: _data.totalFarmers,
+            todayPurchaseCount: _data.todayPurchaseCount,
+            thisMonthValue: _data.thisMonthValue,
+            thisMonthCount: _data.thisMonthCount,
+            totalPendingPayments: _data.totalPendingPayments,
+            pendingExpenseApprovals: _data.pendingExpenseApprovals,
+            recentPurchases: _data.recentPurchases,
+            weeklyArrivals: _data.weeklyArrivals,
+            profitLoss: _ProfitLossData(
+              totalSales: pl.totalSales,
+              totalPurchases: pl.totalPurchaseCost,
+              totalExpenses: pl.totalExpenses,
+              grossProfit: pl.grossProfit,
+              netProfit: pl.netProfit,
+              profitMargin: pl.profitMargin,
+            ),
+            // Total revenue = today's total sales from P&L report
+            totalRevenue: pl.totalSales,
+            totalWarehouses: _data.totalWarehouses,
+          );
+          _plLoading = false;
+        });
+      } else {
+        debugPrint('⚠️ Today P&L failed: ${result.message}');
+        setState(() => _plLoading = false);
+      }
+    } catch (e) {
+      debugPrint('❌ Today P&L exception: $e');
       setState(() => _plLoading = false);
     }
-  } catch (e) {
-    debugPrint('❌ Today P&L exception: $e');
-    setState(() => _plLoading = false);
   }
-}
 
   // ── Navigate to All Products ──────────────────────────────
   void _openAllProducts() {
@@ -168,6 +223,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _loading = true;
       _hasError = false;
       _plLoading = true;
+      _warehouseLoading = true;
     });
 
     try {
@@ -184,6 +240,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           (d['totalPendingPayments'] as num?)?.toDouble() ?? 0.0;
       final pendingExpenses =
           (d['pendingExpenseApprovals'] as num?)?.toInt() ?? 0;
+
+      // Try to extract total revenue from dashboard response directly
+      final totalRevenue =
+          (d['totalRevenue'] as num?)?.toDouble() ??
+          (d['totalSales'] as num?)?.toDouble() ??
+          monthValue;
 
       debugPrint('✅ Dashboard KPIs loaded');
 
@@ -266,16 +328,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
           pendingExpenseApprovals: pendingExpenses,
           recentPurchases: recentList,
           weeklyArrivals: weeklyNorm,
+          totalRevenue: totalRevenue,
         );
         _loading = false;
       });
 
-      _loadProfitLoss();
+      // Fire secondary loaders in parallel
+      await Future.wait([
+        _loadProfitLoss(),
+        _loadWarehouseCount(),
+      ]);
     } catch (e) {
       debugPrint('❌ Dashboard failed: $e');
       setState(() {
         _loading = false;
         _plLoading = false;
+        _warehouseLoading = false;
         _hasError = true;
       });
     }
@@ -347,7 +415,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final lang = Provider.of<LanguageProvider>(context);
-    final userName = auth.user?.name ?? 'User';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -369,20 +436,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Hello, ${userName.split(' ').first}!',
-                            style: AppTextStyles.headingLarge),
+                        Text('Hello !', style: AppTextStyles.headingLarge),
                         const SizedBox(height: 3),
-                        Text(_todayLabel(),
-                            style: AppTextStyles.bodyMedium),
+                        Text(_todayLabel(), style: AppTextStyles.bodyMedium),
                       ],
                     ),
                     Row(
                       children: [
                         GestureDetector(
-                          onTap: () =>
-                              _showLanguagePicker(context, lang),
+                          onTap: () {
+                            final newLang = lang.currentLanguage.code == 'en'
+                                ? 'mr'
+                                : 'en';
+                            lang.setLanguage(newLang);
+                          },
                           child: Container(
-                            padding: const EdgeInsets.all(10),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
                               color: AppColors.surface,
                               borderRadius: BorderRadius.circular(12),
@@ -392,11 +462,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   color: AppColors.shadowLight,
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
-                                )
+                                ),
                               ],
                             ),
-                            child: Text(lang.currentLanguage.flag,
-                                style: const TextStyle(fontSize: 20)),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.language_rounded,
+                                    size: 16, color: AppColors.primary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  lang.currentLanguage.code == 'en'
+                                      ? 'EN'
+                                      : 'मर',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    fontFamily: 'Poppins',
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -480,8 +567,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     size: 20, color: AppColors.error),
                                 SizedBox(width: 12),
                                 Text('Logout',
-                                    style: TextStyle(
-                                        color: AppColors.error)),
+                                    style:
+                                        TextStyle(color: AppColors.error)),
                               ]),
                             ),
                           ],
@@ -497,108 +584,151 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 _buildHeroBanner(),
                 const SizedBox(height: 20),
 
-                // ── KPI Grid ─────────────────────────────────
-                Text(lang.t('todays_overview'),
-                    style: AppTextStyles.headingMedium),
-                const SizedBox(height: 12),
-                if (_loading)
-                  _buildKpiShimmer()
-                else
-                  GridView.count(
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 1.45,
-                    children: [
-                      _KpiCard(
-                        icon: Icons.local_shipping_rounded,
-                        label: lang.t('todays_purchases'),
-                        value: _data.todayPurchaseCount.toString(),
-                        change: _data.todayPurchaseCount > 0
-                            ? 'Today'
-                            : 'None yet',
-                        positive: true,
-                      ),
-                      _KpiCard(
-                        icon: Icons.people_rounded,
-                        label: lang.t('active_farmers'),
-                        value: _data.totalFarmers.toString(),
-                        change: 'Registered',
-                        positive: true,
-                      ),
-                      _KpiCard(
-                        icon: Icons.account_balance_wallet_rounded,
-                        label: lang.t('pending_dues'),
-                        value: _formatAmount(_data.totalPendingPayments),
-                        change: _data.totalPendingPayments > 0
-                            ? 'Unpaid'
-                            : 'All clear',
-                        positive: _data.totalPendingPayments == 0,
-                      ),
-                      _KpiCard(
-                        icon: Icons.trending_up_rounded,
-                        label: lang.t('this_month'),
-                        value: _formatAmount(_data.thisMonthValue),
-                        change: '${_data.thisMonthCount} purchases',
-                        positive: true,
-                      ),
-                    ],
-                  ),
+                // // ── KPI Grid ─────────────────────────────────
+                // Text(lang.t('todays_overview'),
+                //     style: AppTextStyles.headingMedium),
+                // const SizedBox(height: 12),
+                // if (_loading)
+                //   _buildKpiShimmer()
+                // else
+                //   GridView.count(
+                //     crossAxisCount: 2,
+                //     shrinkWrap: true,
+                //     physics: const NeverScrollableScrollPhysics(),
+                //     mainAxisSpacing: 12,
+                //     crossAxisSpacing: 12,
+                //     childAspectRatio: 1.45,
+                //     children: [
+                //       _KpiCard(
+                //         icon: Icons.local_shipping_rounded,
+                //         label: lang.t('todays_purchases'),
+                //         value: _data.todayPurchaseCount.toString(),
+                //         change: _data.todayPurchaseCount > 0
+                //             ? 'Today'
+                //             : 'None yet',
+                //         positive: true,
+                //       ),
+                //       _KpiCard(
+                //         icon: Icons.people_rounded,
+                //         label: lang.t('active_farmers'),
+                //         value: _data.totalFarmers.toString(),
+                //         change: 'Registered',
+                //         positive: true,
+                //       ),
+                //       _KpiCard(
+                //         icon: Icons.account_balance_wallet_rounded,
+                //         label: lang.t('pending_dues'),
+                //         value: _formatAmount(_data.totalPendingPayments),
+                //         change: _data.totalPendingPayments > 0
+                //             ? 'Unpaid'
+                //             : 'All clear',
+                //         positive: _data.totalPendingPayments == 0,
+                //       ),
+                //       _KpiCard(
+                //         icon: Icons.trending_up_rounded,
+                //         label: lang.t('this_month'),
+                //         value: _formatAmount(_data.thisMonthValue),
+                //         change: '${_data.thisMonthCount} purchases',
+                //         positive: true,
+                //       ),
+                //     ],
+                //   ),
+                // const SizedBox(height: 20),
+
+                // ── Stat Summary Cards (replaces Quick Actions) ──
+                _buildStatCardsSection(lang),
                 const SizedBox(height: 20),
 
                 // ── Quick Actions header + All Products button ─
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(lang.t('quick_actions'),
-                        style: AppTextStyles.headingMedium),
-                    // All Products pill button
-                    GestureDetector(
-                      onTap: _openAllProducts,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF7CB518), Color(0xFF7CB518)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(30),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF7CB518).withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.production_quantity_limits_rounded,
-                                color: Colors.white, size: 18),
-                            SizedBox(width: 8),
-                            Text(
-                              'All Products',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                fontFamily: 'Poppins',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+            // ── Quick Actions header + pill buttons ─
+Row(
+  children: [
+    Text(lang.t('quick_actions'),
+        style: AppTextStyles.headingMedium),
+    const Spacer(),
+    // All Payments pill
+    GestureDetector(
+      onTap: () => Navigator.push(
+  context,
+MaterialPageRoute(builder: (_) => const PaymentSelectionScreen()),
+
+       ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color.fromARGB(255, 122, 188, 8),
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: const Color.fromARGB(255, 112, 188, 5).withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+              
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          
+          children: [
+            Icon(Icons.payments_rounded, color: Colors.white, size: 15),
+            SizedBox(width: 5),
+            Text(
+              'Payments',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'Poppins',
+                
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+    const SizedBox(width: 8),
+    // All Products pill
+    GestureDetector(
+      onTap: _openAllProducts,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xFF7CB518),
+          borderRadius: BorderRadius.circular(30),
+          
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF7CB518).withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.production_quantity_limits_rounded,
+                color: Colors.white, size: 15),
+            SizedBox(width: 5),
+            Text(
+              'Products',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'Poppins',
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  ],
+),
                 const SizedBox(height: 12),
 
-                // ── Quick Actions Row 1: New Purchase / Buyers / New Sale ──
+                // ── Quick Actions Row 1 ──
                 Row(
                   children: [
                     Expanded(
@@ -653,7 +783,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 10),
 
-                // ── Quick Actions Row 2: Inventory / Ledger / Reports ──
+                // ── Quick Actions Row 2 ──
                 Row(
                   children: [
                     Expanded(
@@ -664,8 +794,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) =>
-                                  const InventoryListScreen()),
+                              builder: (_) => const InventoryListScreen()),
                         ),
                       ),
                     ),
@@ -699,118 +828,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // ── Weekly Bar Chart ──────────────────────────
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                              Text(lang.t('weekly_arrivals'),
-                                  style: AppTextStyles.headingSmall),
-                              Text(lang.t('this_week'),
-                                  style: AppTextStyles.bodySmall
-                                      .copyWith(
-                                          color: AppColors.textHint)),
-                            ],
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.successSurface,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Row(
-                              children: [
-                                Icon(Icons.trending_up_rounded,
-                                    color: AppColors.success, size: 13),
-                                SizedBox(width: 4),
-                                Text('Live',
-                                    style: TextStyle(
-                                        color: AppColors.success,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        fontFamily: 'Poppins')),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      if (_loading)
-                        Container(
-                            height: 120,
-                            color: AppColors.surfaceVariant)
-                      else
-                        SizedBox(
-                          height: 120,
-                          child: Row(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.end,
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceEvenly,
-                            children: [
-                              _Bar(
-                                  day: 'Mon',
-                                  pct: _data.weeklyArrivals[0]),
-                              _Bar(
-                                  day: 'Tue',
-                                  pct: _data.weeklyArrivals[1]),
-                              _Bar(
-                                  day: 'Wed',
-                                  pct: _data.weeklyArrivals[2]),
-                              _Bar(
-                                  day: 'Thu',
-                                  pct: _data.weeklyArrivals[3]),
-                              _Bar(
-                                  day: 'Fri',
-                                  pct: _data.weeklyArrivals[4]),
-                              _Bar(
-                                  day: 'Sat',
-                                  pct: _data.weeklyArrivals[5]),
-                              _Bar(
-                                day: 'Sun',
-                                pct: _data.weeklyArrivals[6],
-                                isToday: DateTime.now().weekday == 7,
-                              ),
-                            ],
-                          ),
-                        ),
-                      const SizedBox(height: 14),
-                      const Divider(color: AppColors.divider),
-                      const SizedBox(height: 10),
-                      Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(lang.t('total_this_week'),
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textHint,
-                                  fontFamily: 'Poppins')),
-                          Text(
-                            _formatAmount(_data.thisMonthValue),
-                            style: AppTextStyles.numberSmall
-                                .copyWith(color: AppColors.primary),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+            
                 const SizedBox(height: 20),
 
                 // ── Error state ──────────────────────────────
@@ -859,7 +877,95 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ─────────────────────────────────────────────────────────────
-  //  HERO BANNER  (compact, professional)
+  //  STAT SUMMARY CARDS (2×2 grid with API data)
+  //  Replaces the old quick-action buttons
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildStatCardsSection(LanguageProvider lang) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Business Overview', style: AppTextStyles.headingMedium),
+        const SizedBox(height: 12),
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 1.6,
+          children: [
+            // ── Total Farmers ────────────────────────────────
+            _StatCard(
+              icon: Icons.agriculture_rounded,
+              label: 'Total Farmers',
+              value: _loading ? null : _data.totalFarmers.toString(),
+              accentColor: AppColors.primary,
+              bgColor: AppColors.primarySurface,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const FarmerListScreen()),
+              ),
+            ),
+
+            // ── Total Pending Payments ───────────────────────
+            _StatCard(
+              icon: Icons.payments_rounded,
+              label: 'Total Payment',
+              value: _loading
+                  ? null
+                  : _formatAmount(_data.totalPendingPayments),
+              subtitle: _data.totalPendingPayments > 0 ? 'Pending' : 'Cleared',
+              accentColor: _data.totalPendingPayments > 0
+                  ? AppColors.warning
+                  : AppColors.success,
+              bgColor: _data.totalPendingPayments > 0
+                  ? AppColors.warningSurface
+                  : AppColors.successSurface,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LedgerScreen()),
+              ),
+            ),
+
+            // ── Total Warehouses ─────────────────────────────
+            _StatCard(
+              icon: Icons.warehouse_rounded,
+              label: 'Total Warehouses',
+              value: _warehouseLoading ? null : _data.totalWarehouses.toString(),
+              accentColor: AppColors.info,
+              bgColor: AppColors.infoSurface,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const InventoryListScreen()),
+              ),
+            ),
+
+            // ── Total Revenue ────────────────────────────────
+            _StatCard(
+              icon: Icons.show_chart_rounded,
+              label: 'Total Revenue',
+              value: _plLoading
+                  ? null
+                  : _formatAmount(_data.profitLoss.totalSales > 0
+                      ? _data.profitLoss.totalSales
+                      : _data.totalRevenue),
+              subtitle: 'Today\'s sales',
+              accentColor: const Color(0xFF9C27B0),
+              bgColor: const Color(0xFFF3E5F5),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ReportsScreen()),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  HERO BANNER
   // ─────────────────────────────────────────────────────────────
   Widget _buildHeroBanner() {
     final pl = _data.profitLoss;
@@ -886,7 +992,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── Row 1: title + circular logo ─────────────────
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -894,7 +999,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ERP badge pill
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 9, vertical: 3),
@@ -902,8 +1006,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         color: Colors.white.withOpacity(0.18),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                            color: Colors.white.withOpacity(0.28),
-                            width: 1),
+                            color: Colors.white.withOpacity(0.28), width: 1),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
@@ -946,7 +1049,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               const SizedBox(width: 10),
-              // Circular logo
               Container(
                 width: 52,
                 height: 52,
@@ -981,7 +1083,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Container(height: 1, color: Colors.white.withOpacity(0.15)),
           const SizedBox(height: 12),
 
-          // ── Row 2: 3 P&L stats ────────────────────────────
           if (_plLoading)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -999,7 +1100,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           else
             Row(
               children: [
-                // Sales
                 Expanded(
                   child: _HeroStat(
                     label: 'Total Sales',
@@ -1014,7 +1114,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     width: 1,
                     height: 44,
                     color: Colors.white.withOpacity(0.2)),
-                // Net profit/loss
                 Expanded(
                   child: _HeroStat(
                     label: netLabel,
@@ -1031,7 +1130,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     width: 1,
                     height: 44,
                     color: Colors.white.withOpacity(0.2)),
-                // Margin
                 Expanded(
                   child: _HeroStat(
                     label: 'Margin',
@@ -1047,7 +1145,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
 
-          // ── Row 3: secondary stats (only when loaded) ─────
           if (!_plLoading) ...[
             const SizedBox(height: 10),
             Container(height: 1, color: Colors.white.withOpacity(0.12)),
@@ -1083,19 +1180,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
-  }
-
-  String _todayLabelForHero() {
-    final now = DateTime.now();
-    return 'Today, ${now.day} ${_monthName(now.month)} ${now.year}';
-  }
-
-  String _monthName(int month) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return months[month - 1];
   }
 
   Widget _buildKpiShimmer() {
@@ -1135,6 +1219,128 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ];
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     return '${days[d.weekday % 7]}, ${d.day} ${months[d.month - 1]} ${d.year}';
+  }
+}
+
+// ── Stat Card (new) ───────────────────────────────────────────
+/// Tappable card with icon, label, value and optional subtitle.
+/// Shows a spinner when [value] is null (loading state).
+class _StatCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? value;
+  final String? subtitle;
+  final Color accentColor;
+  final Color bgColor;
+  final VoidCallback onTap;
+
+  const _StatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.accentColor,
+    required this.bgColor,
+    required this.onTap,
+    this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.shadowLight,
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // ── Icon badge ──────────────────────────────
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: accentColor, size: 20),
+            ),
+            const SizedBox(width: 10),
+            // ── Value + label ───────────────────────────
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (value == null)
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: accentColor,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  else
+                    Text(
+                      value!,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Poppins',
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                      fontFamily: 'Poppins',
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 3),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: bgColor,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        subtitle!,
+                        style: TextStyle(
+                          color: accentColor,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'Poppins',
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

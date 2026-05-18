@@ -221,6 +221,8 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
   late final Animation<double> _fadeAnim;
 
   static const _pricingTypes = ['kg', 'quintal', 'fixed'];
+  
+  VoidCallback? get _goToSalesList => null;
 
   @override
   void initState() {
@@ -415,16 +417,16 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
     }
   }
 
-  void _goToSalesList() async {
-    try {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const SalesListScreen()),
-      );
-    } catch (e) {
-      debugPrint('Error navigating to Sales List: $e');
-    }
-  }
+  // void _goToSalesList() async {
+  //   try {
+  //     await Navigator.push(
+  //       context,
+  //       MaterialPageRoute(builder: (_) => const SalesListScreen()),
+  //     );
+  //   } catch (e) {
+  //     debugPrint('Error navigating to Sales List: $e');
+  //   }
+  // }
 
   String? _validateCurrent() {
     switch (_step) {
@@ -443,8 +445,9 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
         if (_bags <= 0) return 'Enter number of bags (must be > 0)';
         if (_weightPerBag <= 0) return 'Enter weight per bag (must be > 0)';
         if (_rate <= 0) return 'Enter rate (must be > 0)';
-        if (_qualityDeduction >= _actualQty)
+        if (_qualityDeduction >= _actualQty) {
           return 'Quality deduction cannot exceed actual quantity';
+        }
         return null;
       case 2:
         return null;
@@ -524,6 +527,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
 
   // ── BUILD ─────────────────────────────────────────────────────
   @override
+
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
@@ -533,12 +537,10 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
       },
       child: Scaffold(
         backgroundColor: AppColors.background,
-        body: Stack(children: [
-          // Gradient header
-          Positioned(
-            top: 0, left: 0, right: 0,
-            child: Container(
-              height: MediaQuery.of(context).size.height * 0.30,
+        body: Column(
+          children: [
+            // ── Fixed Header ─────────────────────────────────────
+            Container(
               decoration: const BoxDecoration(
                 gradient: AppColors.heroGradient,
                 borderRadius: BorderRadius.only(
@@ -548,7 +550,7 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
               ),
               child: SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -582,147 +584,141 @@ class _SaleCreateScreenState extends State<SaleCreateScreen>
                 ),
               ),
             ),
-          ),
 
-          // Scrollable body
-          Positioned.fill(
-            child: SingleChildScrollView(
-              child: Column(children: [
-                SizedBox(height: MediaQuery.of(context).size.height * 0.25),
-                FadeTransition(
-                  opacity: _fadeAnim,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [BoxShadow(
-                        color: AppColors.primary.withOpacity(0.10),
-                        blurRadius: 30,
-                        offset: const Offset(0, 8),
-                      )],
-                    ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 280),
-                      child: _buildCurrentStep(),
-                    ),
-                  ),
-                ),
-
-                // Error
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            // ── Scrollable Content ───────────────────────────────
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(children: [
+                  const SizedBox(height: 20),
+                  FadeTransition(
+                    opacity: _fadeAnim,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: AppColors.errorSurface,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                            color: AppColors.error.withOpacity(0.3)),
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [BoxShadow(
+                          color: AppColors.primary.withOpacity(0.10),
+                          blurRadius: 30,
+                          offset: const Offset(0, 8),
+                        )],
                       ),
-                      child: Row(children: [
-                        const Icon(Icons.error_outline_rounded,
-                            color: AppColors.error, size: 16),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(_error!,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 280),
+                        child: _buildCurrentStep(),
+                      ),
+                    ),
+                  ),
+                  // Error
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.errorSurface,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: AppColors.error.withOpacity(0.3)),
+                        ),
+                        child: Row(children: [
+                          const Icon(Icons.error_outline_rounded,
+                              color: AppColors.error, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(_error!,
+                                style: const TextStyle(
+                                    color: AppColors.error,
+                                    fontSize: 12,
+                                    fontFamily: 'Poppins')),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+                  // Continue / Create Sale button
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: _saving ? null : _next,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor:
+                          AppColors.primary.withOpacity(0.5),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: _saving
+                            ? const SizedBox(
+                            width: 22, height: 22,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2.5))
+                            : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              _step < 3 ? 'Continue' : 'Create Sale',
                               style: const TextStyle(
-                                  color: AppColors.error,
-                                  fontSize: 12,
-                                  fontFamily: 'Poppins')),
-                        ),
-                      ]),
-                    ),
-                  ),
-
-                const SizedBox(height: 20),
-
-                // Continue / Create Sale button
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: _saving ? null : _next,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor:
-                            AppColors.primary.withOpacity(0.5),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: _saving
-                          ? const SizedBox(
-                              width: 22, height: 22,
-                              child: CircularProgressIndicator(
-                                  color: Colors.white, strokeWidth: 2.5))
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  _step < 3 ? 'Continue' : 'Create Sale',
-                                  style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                      fontFamily: 'Poppins'),
-                                ),
-                                const SizedBox(width: 8),
-                                Icon(
-                                  _step < 3
-                                      ? Icons.arrow_forward_rounded
-                                      : Icons.storefront_rounded,
-                                  size: 18),
-                              ],
-                            ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // View Sales List button
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: OutlinedButton(
-                      onPressed: _goToSalesList,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        side: BorderSide(
-                            color: AppColors.primary, width: 1.5),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.receipt_long_rounded, size: 18),
-                          SizedBox(width: 8),
-                          Text('View Sales List',
-                              style: TextStyle(
-                                  fontSize: 14,
+                                  fontSize: 15,
                                   fontWeight: FontWeight.w600,
-                                  fontFamily: 'Poppins')),
-                        ],
+                                  fontFamily: 'Poppins'),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                                _step < 3
+                                    ? Icons.arrow_forward_rounded
+                                    : Icons.storefront_rounded,
+                                size: 18),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 40),
-              ]),
+                  const SizedBox(height: 12),
+                  // View Sales List button
+                  // Padding(
+                  //   padding: const EdgeInsets.symmetric(horizontal: 16),
+                  //   child: SizedBox(
+                  //     width: double.infinity,
+                  //     height: 48,
+                  //     child: OutlinedButton(
+                  //       onPressed: _goToSalesList,
+                  //       style: OutlinedButton.styleFrom(
+                  //         foregroundColor: AppColors.primary,
+                  //         side: BorderSide(
+                  //             color: AppColors.primary, width: 1.5),
+                  //         shape: RoundedRectangleBorder(
+                  //           borderRadius: BorderRadius.circular(14),
+                  //         ),
+                  //       ),
+                  //       child: const Row(
+                  //         mainAxisAlignment: MainAxisAlignment.center,
+                  //         children: [
+                  //           Icon(Icons.receipt_long_rounded, size: 18),
+                  //           const SizedBox(width: 8),
+                  //           Text('View Sales List',
+                  //               style: TextStyle(
+                  //                   fontSize: 14,
+                  //                   fontWeight: FontWeight.w600,
+                  //                   fontFamily: 'Poppins')),
+                  //         ],
+                  //       ),
+                  //     ),
+                  //   ),
+                  // ),
+                  const SizedBox(height: 40),
+                ]),
+              ),
             ),
-          ),
-        ]),
+          ],
+        ),
       ),
     );
   }

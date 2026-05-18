@@ -1,4 +1,6 @@
 
+import 'package:agr_market/payment/add_payment_screen.dart';
+import 'package:agr_market/payment/Allpayment_screen.dart';
 import 'package:agr_market/payment/payment_screen.dart';
 import 'package:agr_market/providers/language_provider.dart';
 import 'package:agr_market/purchase/purchase_screen.dart';
@@ -389,143 +391,111 @@ class _PurchaseListScreenState extends State<PurchaseListScreen> {
   }
 
   // ── Build ─────────────────────────────────────────────────────
-  @override
+// Replace the entire build method with this improved version:
 
+  @override
   Widget build(BuildContext context) {
-     final lang = Provider.of<LanguageProvider>(context);
+    final lang = Provider.of<LanguageProvider>(context);
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Stack(
+      body: Column(
         children: [
-
-          // ── Gradient Header ─────────────────────────────────────
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Material(
-              color: Colors.transparent,
-              elevation: 20,
-              child: Container(
-                height: MediaQuery.of(context).size.height * 0.32,
-                decoration: const BoxDecoration(
-                  gradient: AppColors.heroGradient,
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(40),
-                    bottomRight: Radius.circular(40),
-                  ),
+          // ── Fixed Header (not scrollable) ─────────────────────
+          Material(
+            color: Colors.transparent,
+            elevation: 20,
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: AppColors.heroGradient,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(40),
+                  bottomRight: Radius.circular(40),
                 ),
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-
-                        // ── Title Row ─────────────────────────────
-                        Row(
-                          children: [
-
-                            const Icon(
-                              Icons.receipt_long_rounded,
+              ),
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── Title Row ─────────────────────────────
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.receipt_long_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 10),
+                          const Text(
+                            'All Purchases',
+                            style: TextStyle(
                               color: Colors.white,
-                              size: 22,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Poppins',
                             ),
-
-                            const SizedBox(width: 10),
-
-                            const Text(
-                              'All Purchases',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: 'Poppins',
+                          ),
+                          const Spacer(),
+                          // ── Date Button ───────────────────────
+                          ElevatedButton(
+                            onPressed: _pickDateRange,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white.withOpacity(0.2),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                side: BorderSide(
+                                  color: Colors.white.withOpacity(0.3),
+                                ),
                               ),
                             ),
-
-                            const Spacer(),
-
-                            // ── Date Button ───────────────────────
-                            ElevatedButton(
-                              onPressed: _pickDateRange,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                Colors.white.withOpacity(0.2),
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.date_range_rounded, size: 15),
+                                const SizedBox(width: 5),
+                                Text(
+                                  _startDate != null
+                                      ? '${_fmtDate(_startDate!)} – ${_fmtDate(_endDate!)}'
+                                      : 'Date',
+                                  style: const TextStyle(fontSize: 11),
                                 ),
+                              ],
+                            ),
+                          ),
+                          // ── Clear Filter Button ───────────────
+                          if (_startDate != null) ...[
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: _clearDateFilter,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white.withOpacity(0.2),
+                                foregroundColor: Colors.white70,
+                                elevation: 0,
+                                padding: const EdgeInsets.all(6),
+                                minimumSize: const Size(0, 0),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius:
-                                  BorderRadius.circular(10),
+                                  borderRadius: BorderRadius.circular(10),
                                   side: BorderSide(
                                     color: Colors.white.withOpacity(0.3),
                                   ),
                                 ),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-
-                                  const Icon(
-                                    Icons.date_range_rounded,
-                                    size: 15,
-                                  ),
-
-                                  const SizedBox(width: 5),
-
-                                  Text(
-                                    _startDate != null
-                                        ? '${_fmtDate(_startDate!)} – ${_fmtDate(_endDate!)}'
-                                        : 'Date',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              child: const Icon(Icons.close_rounded, size: 15),
                             ),
-
-                            // ── Clear Filter Button ───────────────
-                            if (_startDate != null) ...[
-                              const SizedBox(width: 8),
-
-                              ElevatedButton(
-                                onPressed: _clearDateFilter,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor:
-                                  Colors.white.withOpacity(0.2),
-                                  foregroundColor: Colors.white70,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.all(6),
-                                  minimumSize: const Size(0, 0),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                    BorderRadius.circular(10),
-                                    side: BorderSide(
-                                      color:
-                                      Colors.white.withOpacity(0.3),
-                                    ),
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.close_rounded,
-                                  size: 15,
-                                ),
-                              ),
-                            ],
                           ],
-                        ),
-
-                        const SizedBox(height: 14),
-
-                        // ── Summary Row ──────────────────────────
-                        _buildSummaryRow(),
-                      ],
-                    ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      // ── Summary Row ──────────────────────────
+                      _buildSummaryRow(),
+                    ],
                   ),
                 ),
               ),
@@ -533,63 +503,44 @@ class _PurchaseListScreenState extends State<PurchaseListScreen> {
           ),
 
           // ── Scrollable Content ─────────────────────────────────
-          Positioned.fill(
-  bottom: kBottomNavigationBarHeight,
-  child: RefreshIndicator(
-    onRefresh: () => _fetchPurchases(reset: true),
-    color: AppColors.primary,
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () => _fetchPurchases(reset: true),
+              color: AppColors.primary,
               child: CustomScrollView(
                 controller: _scrollCtrl,
                 physics: const AlwaysScrollableScrollPhysics(),
-                //  padding: const EdgeInsets.only(bottom: 80),
-                 
                 slivers: [
-
-                  // IMPORTANT FIX
-                  SliverToBoxAdapter(
-                    child: SizedBox(
-                      height:
-                      MediaQuery.of(context).size.height * 0.34,
-                    ),
-                  ),
-
                   // ── Search + Filters Card ─────────────────────
                   SliverToBoxAdapter(
                     child: Container(
-                      margin:
-                      const EdgeInsets.symmetric(horizontal: 16),
-                      padding: const EdgeInsets.fromLTRB(
-                          16, 16, 16, 12),
+                      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
                       decoration: BoxDecoration(
                         color: AppColors.surface,
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primary
-                                .withOpacity(0.10),
+                            color: AppColors.primary.withOpacity(0.10),
                             blurRadius: 24,
                             offset: const Offset(0, 6),
                           ),
                         ],
                       ),
                       child: Column(
-                        crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-
                           // ── Search Field ──────────────────────
                           TextField(
                             controller: _searchCtrl,
-                            onChanged: (v) =>
-                                setState(() => _searchQuery = v),
+                            onChanged: (v) => setState(() => _searchQuery = v),
                             style: const TextStyle(
                               fontFamily: 'Poppins',
                               fontSize: 13,
                               color: AppColors.textPrimary,
                             ),
                             decoration: InputDecoration(
-                              hintText:
-                              'Search by farmer name or receipt no.',
+                              hintText: 'Search by farmer name or receipt no.',
                               hintStyle: const TextStyle(
                                 fontFamily: 'Poppins',
                                 fontSize: 13,
@@ -600,49 +551,39 @@ class _PurchaseListScreenState extends State<PurchaseListScreen> {
                                 color: AppColors.textHint,
                                 size: 20,
                               ),
-                              suffixIcon:
-                              _searchQuery.isNotEmpty
+                              suffixIcon: _searchQuery.isNotEmpty
                                   ? GestureDetector(
                                 onTap: () {
                                   _searchCtrl.clear();
-                                  setState(() =>
-                                  _searchQuery = '');
+                                  setState(() => _searchQuery = '');
                                 },
                                 child: const Icon(
                                   Icons.close_rounded,
-                                  color:
-                                  AppColors.textHint,
+                                  color: AppColors.textHint,
                                   size: 18,
                                 ),
                               )
                                   : null,
                               filled: true,
-                              fillColor:
-                              AppColors.surfaceVariant,
-                              contentPadding:
-                              const EdgeInsets.symmetric(
+                              fillColor: AppColors.surfaceVariant,
+                              contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 14,
                                 vertical: 12,
                               ),
                               border: OutlineInputBorder(
-                                borderRadius:
-                                BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(12),
                                 borderSide: const BorderSide(
                                   color: AppColors.border,
                                 ),
                               ),
-                              enabledBorder:
-                              OutlineInputBorder(
-                                borderRadius:
-                                BorderRadius.circular(12),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
                                 borderSide: const BorderSide(
                                   color: AppColors.border,
                                 ),
                               ),
-                              focusedBorder:
-                              OutlineInputBorder(
-                                borderRadius:
-                                BorderRadius.circular(12),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
                                 borderSide: const BorderSide(
                                   color: AppColors.primary,
                                   width: 1.5,
@@ -650,79 +591,44 @@ class _PurchaseListScreenState extends State<PurchaseListScreen> {
                               ),
                             ),
                           ),
-
                           const SizedBox(height: 12),
-
                           // ── Status Chips ──────────────────────
                           SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: Row(
                               children: [
-
                                 _FilterChip(
                                   label: 'All',
                                   count: _purchases.length,
-                                  active:
-                                  _selectedStatus == 'all',
-                                  onTap: () =>
-                                      _setStatus('all'),
+                                  active: _selectedStatus == 'all',
+                                  onTap: () => _setStatus('all'),
                                 ),
-
                                 const SizedBox(width: 8),
-
                                 _FilterChip(
                                   label: 'Pending',
-                                  count: _purchases
-                                      .where((p) =>
-                                  p.status ==
-                                      'pending')
-                                      .length,
+                                  count: _purchases.where((p) => p.status == 'pending').length,
                                   color: AppColors.error,
-                                  bgColor:
-                                  AppColors.errorSurface,
-                                  active:
-                                  _selectedStatus ==
-                                      'pending',
-                                  onTap: () =>
-                                      _setStatus('pending'),
+                                  bgColor: AppColors.errorSurface,
+                                  active: _selectedStatus == 'pending',
+                                  onTap: () => _setStatus('pending'),
                                 ),
-
                                 const SizedBox(width: 8),
-
                                 _FilterChip(
                                   label: 'Partial',
-                                  count: _purchases
-                                      .where((p) =>
-                                  p.status ==
-                                      'partial')
-                                      .length,
+                                  count: _purchases.where((p) => p.status == 'partial').length,
                                   color: AppColors.warning,
-                                  bgColor: AppColors
-                                      .warningSurface,
-                                  active:
-                                  _selectedStatus ==
-                                      'partial',
-                                  onTap: () =>
-                                      _setStatus('partial'),
+                                  bgColor: AppColors.warningSurface,
+                                  active: _selectedStatus == 'partial',
+                                  onTap: () => _setStatus('partial'),
                                 ),
-
                                 const SizedBox(width: 8),
-
                                 _FilterChip(
                                   label: 'Paid',
-                                  count: _purchases
-                                      .where((p) =>
-                                  p.status ==
-                                      'paid')
-                                      .length,
+                                  count: _purchases.where((p) => p.status == 'paid').length,
                                   color: AppColors.success,
-                                  bgColor: AppColors
-                                      .successSurface,
-                                  active:
-                                  _selectedStatus ==
-                                      'paid',
-                                  onTap: () =>
-                                      _setStatus('paid'),
+                                  bgColor: AppColors.successSurface,
+                                  active: _selectedStatus == 'paid',
+                                  onTap: () => _setStatus('paid'),
                                 ),
                               ],
                             ),
@@ -731,11 +637,7 @@ class _PurchaseListScreenState extends State<PurchaseListScreen> {
                       ),
                     ),
                   ),
-
-                  const SliverToBoxAdapter(
-                    child: SizedBox(height: 12),
-                  ),
-
+                  const SliverToBoxAdapter(child: SizedBox(height: 12)),
                   // ── Empty State / List ────────────────────────
                   if (!_loading && _filtered.isEmpty)
                     SliverToBoxAdapter(
@@ -743,63 +645,48 @@ class _PurchaseListScreenState extends State<PurchaseListScreen> {
                     )
                   else
                     SliverPadding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       sliver: SliverList(
-                        delegate:
-                        SliverChildBuilderDelegate(
+                        delegate: SliverChildBuilderDelegate(
                               (ctx, i) {
-
                             if (i == _filtered.length) {
                               return _loading
                                   ? const Padding(
-                                padding:
-                                EdgeInsets.all(20),
+                                padding: EdgeInsets.all(20),
                                 child: Center(
-                                  child:
-                                  CircularProgressIndicator(
-                                    color:
-                                    AppColors.primary,
+                                  child: CircularProgressIndicator(
+                                    color: AppColors.primary,
                                     strokeWidth: 2,
                                   ),
                                 ),
                               )
-                                  : const SizedBox(
-                                  height: 20);
+                                  : const SizedBox(height: 20);
                             }
-
                             return _PurchaseCard(
                               purchase: _filtered[i],
                               fmtAmount: _fmtAmount,
                               timeAgo: _timeAgo,
-                              onTap: () =>
-                                  _showDetail(_filtered[i]),
+                              onTap: () => _showDetail(_filtered[i]),
                             );
                           },
-                          childCount:
-                          _filtered.length + 1,
+                          childCount: _filtered.length + 1,
                         ),
                       ),
                     ),
-
                   // ── Shimmer Loader ────────────────────────────
                   if (_loading && _purchases.isEmpty)
                     SliverPadding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       sliver: SliverList(
-                        delegate:
-                        SliverChildBuilderDelegate(
+                        delegate: SliverChildBuilderDelegate(
                               (_, __) => _buildShimmerCard(),
                           childCount: 5,
                         ),
                       ),
                     ),
-
+                  // Bottom padding for safe area
                   SliverToBoxAdapter(
-      child: SizedBox(
-        height: MediaQuery.of(context).padding.bottom + 80,
-      ),
+                    child: SizedBox(height: 16 + MediaQuery.of(context).padding.bottom),
                   ),
                 ],
               ),

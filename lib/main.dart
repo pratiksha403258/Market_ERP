@@ -9,7 +9,7 @@ import 'core/splash/splash_screen.dart';
 import 'features/auth/screens/login_screen.dart';
 // import 'features/auth/screens/register_screen.dart';
 import 'features/auth/screens/registration_screen.dart';
-import 'features/navigation/main_navigation_screen.dart';
+import 'features/navigation/main_navigation_screen.dart' hide AppColors;
 import 'providers/auth_provider.dart';
 import 'providers/language_provider.dart';
 import 'providers/farmer_provider.dart';  
@@ -46,7 +46,7 @@ class MarketErpApp extends StatelessWidget {
         '/language':  (_) => const LanguageSelectionScreen(),
         '/home':      (_) => const MainNavigationScreen(),
         '/register':  (_) => const RegisterScreen(),
-   '/purchases': (_) => const PurchaseListScreen(),  // ADD THIS LINE
+   '/purchases': (_) => const PurchaseListScreen(),
       },
     );
   }

@@ -1,3 +1,4 @@
+import 'package:agr_market/sales/sale_create_screen.dart';
 import 'package:agr_market/sales/sale_payment_screen.dart';
 import 'package:agr_market/sales/sales_detail_sheet.dart';
 import 'package:agr_market/sales/sales_invoice_screen.dart';
@@ -50,7 +51,7 @@ class _SalesListScreenState extends State<SalesListScreen> {
 
   void _onScroll() {
     if (_scrollCtrl.position.pixels >=
-            _scrollCtrl.position.maxScrollExtent - 200 &&
+        _scrollCtrl.position.maxScrollExtent - 200 &&
         !_isLoadingMore &&
         _currentPage < _totalPages) {
       _loadMoreSales();
@@ -58,6 +59,10 @@ class _SalesListScreenState extends State<SalesListScreen> {
   }
 
   Future<void> _loadSales({bool reset = true}) async {
+    debugPrint('🔵 ========== _loadSales called ==========');
+    debugPrint('🔵 reset: $reset');
+    debugPrint('🔵 currentPage before: $_currentPage');
+
     if (reset) {
       setState(() {
         _loading = true;
@@ -65,6 +70,7 @@ class _SalesListScreenState extends State<SalesListScreen> {
         _currentPage = 1;
         _sales = [];
       });
+      debugPrint('🔵 Reset mode: cleared existing sales');
     }
 
     try {
@@ -80,44 +86,60 @@ class _SalesListScreenState extends State<SalesListScreen> {
         params['endDate'] = DateFormat('yyyy-MM-dd').format(_endDate!);
       }
 
-      debugPrint('🔍 Fetching sales with params: $params');
+      debugPrint('🔵 Request params: $params');
+      debugPrint('🔵 API URL: ${ApiRoutes.sales}');
+      debugPrint('🔵 Full URL: https://codiantsolutions.com/api/agri_tred/api${ApiRoutes.sales}');
 
       final response = await DioClient.instance.dio.get(
         ApiRoutes.sales,
         queryParameters: params,
       );
 
-      debugPrint('✅ Sales response status: ${response.statusCode}');
+      debugPrint('✅ Response status code: ${response.statusCode}');
+      debugPrint('✅ Response data type: ${response.runtimeType}');
 
       final responseData = response.data as Map<String, dynamic>;
+      debugPrint('✅ Response success field: ${responseData['success']}');
+      debugPrint('✅ Full response: ${responseData.toString().substring(0, responseData.toString().length > 500 ? 500 : responseData.toString().length)}...');
 
       if (responseData['success'] != true) {
-        throw Exception(
-            'API returned success=false: ${responseData['message']}');
+        debugPrint('❌ API returned success=false: ${responseData['message']}');
+        throw Exception('API returned success=false: ${responseData['message']}');
       }
 
       final salesList = responseData['data'] as List? ?? [];
-      final pagination =
-          responseData['pagination'] as Map<String, dynamic>? ?? {};
+      debugPrint('📊 Sales list length: ${salesList.length}');
+
+      if (salesList.isNotEmpty) {
+        debugPrint('📊 First sale data: ${salesList[0]}');
+      }
+
+      final pagination = responseData['pagination'] as Map<String, dynamic>? ?? {};
+      debugPrint('📊 Pagination data: $pagination');
 
       final newSales = salesList
           .map((e) => SaleModel.fromJson(e as Map<String, dynamic>))
           .toList();
 
+      debugPrint('📊 Parsed ${newSales.length} sales models');
+
       setState(() {
         if (reset) {
           _sales = newSales;
+          debugPrint('📊 Reset mode: set _sales to ${_sales.length} items');
         } else {
           _sales = [..._sales, ...newSales];
+          debugPrint('📊 Load more mode: added ${newSales.length} items, total now ${_sales.length}');
         }
         _totalPages = (pagination['pages'] as num?)?.toInt() ?? 1;
         _loading = false;
+        debugPrint('📊 totalPages: $_totalPages');
       });
 
-      debugPrint(
-          '📊 Loaded ${newSales.length} sales, total pages: $_totalPages');
-    } catch (e) {
+      debugPrint('📊 Loaded ${newSales.length} sales, total pages: $_totalPages');
+    } catch (e, stacktrace) {
       debugPrint('❌ Error loading sales: $e');
+      debugPrint('❌ Stacktrace: $stacktrace');
       setState(() {
         _error = e.toString();
         _loading = false;
@@ -126,16 +148,22 @@ class _SalesListScreenState extends State<SalesListScreen> {
   }
 
   Future<void> _loadMoreSales() async {
-    if (_isLoadingMore || _currentPage >= _totalPages) return;
+    debugPrint('🔵 _loadMoreSales called');
+    if (_isLoadingMore || _currentPage >= _totalPages) {
+      debugPrint('🔵 Skip load more - isLoadingMore: $_isLoadingMore, currentPage: $_currentPage, totalPages: $_totalPages');
+      return;
+    }
     setState(() {
       _isLoadingMore = true;
       _currentPage++;
     });
+    debugPrint('🔵 Loading more sales - page: $_currentPage');
     await _loadSales(reset: false);
     setState(() => _isLoadingMore = false);
   }
 
   Future<void> _pickDateRange() async {
+    debugPrint('🔵 _pickDateRange called');
     final result = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
@@ -152,15 +180,19 @@ class _SalesListScreenState extends State<SalesListScreen> {
     );
 
     if (result != null) {
+      debugPrint('🔵 Date range selected: ${result.start} to ${result.end}');
       setState(() {
         _startDate = result.start;
         _endDate = result.end;
       });
       _loadSales(reset: true);
+    } else {
+      debugPrint('🔵 Date range picker cancelled');
     }
   }
 
   void _clearDateFilter() {
+    debugPrint('🔵 _clearDateFilter called');
     setState(() {
       _startDate = null;
       _endDate = null;
@@ -187,6 +219,11 @@ class _SalesListScreenState extends State<SalesListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('🔵 ========== BUILDING SalesListScreen ==========');
+    debugPrint('🔵 _sales length: ${_sales.length}');
+    debugPrint('🔵 _loading: $_loading');
+    debugPrint('🔵 _error: $_error');
+
     return Consumer<LanguageProvider>(
       builder: (context, langProv, child) {
         return Scaffold(
@@ -212,6 +249,28 @@ class _SalesListScreenState extends State<SalesListScreen> {
                 ),
             ],
           ),
+          floatingActionButton: FloatingActionButton.extended(
+    onPressed: () async {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const SaleCreateScreen()),
+      );
+      if (result == true) {
+        _loadSales(reset: true);  // refresh list if a sale was created
+      }
+    },
+    backgroundColor: AppColors.primary,
+    foregroundColor: Colors.white,
+    icon: const Icon(Icons.add_rounded),
+    label: const Text(
+      'Create Sale',
+      style: TextStyle(
+        fontFamily: 'Poppins',
+        fontWeight: FontWeight.w600,
+        fontSize: 14,
+      ),
+    ),
+  ),
           body: Column(
             children: [
               // Search bar
@@ -219,20 +278,22 @@ class _SalesListScreenState extends State<SalesListScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: TextField(
                   controller: _searchCtrl,
-                  onChanged: (v) =>
-                      setState(() => _searchQuery = v.toLowerCase()),
+                  onChanged: (v) {
+                    debugPrint('🔍 Search query changed: $v');
+                    setState(() => _searchQuery = v.toLowerCase());
+                  },
                   decoration: InputDecoration(
-                    hintText:
-                        'Search by invoice, buyer name or mobile...',
+                    hintText: 'Search by invoice, buyer name or mobile...',
                     prefixIcon: const Icon(Icons.search, size: 20),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
-                            icon: const Icon(Icons.clear, size: 18),
-                            onPressed: () {
-                              _searchCtrl.clear();
-                              setState(() => _searchQuery = '');
-                            },
-                          )
+                      icon: const Icon(Icons.clear, size: 18),
+                      onPressed: () {
+                        debugPrint('🔍 Search cleared');
+                        _searchCtrl.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                    )
                         : null,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -292,42 +353,42 @@ class _SalesListScreenState extends State<SalesListScreen> {
               Expanded(
                 child: _loading
                     ? const Center(
-                        child: CircularProgressIndicator(
-                            color: AppColors.primary))
+                    child: CircularProgressIndicator(
+                        color: AppColors.primary))
                     : _error != null
-                        ? _buildErrorWidget()
-                        : _filteredSales.isEmpty
-                            ? _buildEmptyWidget()
-                            : RefreshIndicator(
-                                onRefresh: () => _loadSales(reset: true),
+                    ? _buildErrorWidget()
+                    : _filteredSales.isEmpty
+                    ? _buildEmptyWidget()
+                    : RefreshIndicator(
+                  onRefresh: () => _loadSales(reset: true),
+                  color: AppColors.primary,
+                  child: ListView.builder(
+                    controller: _scrollCtrl,
+                    padding: const EdgeInsets.fromLTRB(
+                        16, 8, 16, 24),
+                    itemCount: _filteredSales.length +
+                        (_isLoadingMore ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index == _filteredSales.length) {
+                        return const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
                                 color: AppColors.primary,
-                                child: ListView.builder(
-                                  controller: _scrollCtrl,
-                                  padding: const EdgeInsets.fromLTRB(
-                                      16, 8, 16, 24),
-                                  itemCount: _filteredSales.length +
-                                      (_isLoadingMore ? 1 : 0),
-                                  itemBuilder: (context, index) {
-                                    if (index == _filteredSales.length) {
-                                      return const Padding(
-                                        padding: EdgeInsets.all(16),
-                                        child: Center(
-                                          child: SizedBox(
-                                            width: 24,
-                                            height: 24,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: AppColors.primary,
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                    return _buildSaleCard(
-                                        _filteredSales[index]);
-                                  },
-                                ),
                               ),
+                            ),
+                          ),
+                        );
+                      }
+                      return _buildSaleCard(
+                          _filteredSales[index]);
+                    },
+                  ),
+                ),
               ),
             ],
           ),
@@ -337,12 +398,18 @@ class _SalesListScreenState extends State<SalesListScreen> {
   }
 
   Widget _buildSaleCard(SaleModel sale) {
+    debugPrint('🔵 Building sale card for: ${sale.invoiceNumber}');
+    debugPrint('🔵 Sale details: buyer=${sale.buyerName}, amount=${sale.finalReceivable}, status=${sale.status}, due=${sale.amountDue}');
+
     // Use finalReceivable as the primary amount; fall back to grandTotal
     final displayAmount =
-        sale.finalReceivable > 0 ? sale.finalReceivable : sale.grandTotal;
+    sale.finalReceivable > 0 ? sale.finalReceivable : sale.grandTotal;
+
+    debugPrint('🔵 Display amount: $displayAmount');
 
     return GestureDetector(
       onTap: () {
+        debugPrint('🔵 Sale card tapped: ${sale.id}');
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -472,7 +539,7 @@ class _SalesListScreenState extends State<SalesListScreen> {
                       : '${line.qty.toStringAsFixed(1)} ${line.unit}';
                   return Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                     decoration: BoxDecoration(
                       color: AppColors.primarySurface,
                       borderRadius: BorderRadius.circular(4),
@@ -495,51 +562,54 @@ class _SalesListScreenState extends State<SalesListScreen> {
                           fontSize: 10, color: AppColors.textHint)),
                 ),
             ],
-          
-          if (sale.status != 'paid' && sale.amountDue > 0) ...[
-  const SizedBox(height: 10),
-  SizedBox(
-    width: double.infinity,
-    child: ElevatedButton.icon(
-      onPressed: () async {
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => SalePaymentScreen(
-              saleId: sale.id,
-              invoiceNumber: sale.invoiceNumber,
-              buyerName: sale.buyerName,
-              totalAmount: displayAmount,
-              amountDue: sale.amountDue,
-            ),
-          ),
-        );
-        if (result == true) {
-          _loadSales(reset: true); // refresh list after payment
-        }
-      },
-      icon: const Icon(Icons.payments_rounded, size: 16),
-      label: Text(
-        'Pay ${_formatCurrency(sale.amountDue)} Due',
-        style: const TextStyle(
-          fontFamily: 'Poppins',
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 10),
-      ),
-    ),
-  ),
-],
-      ],  ),
+
+            if (sale.status != 'paid' && sale.amountDue > 0) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    debugPrint('🔵 Pay button tapped for sale: ${sale.invoiceNumber}, due: ${sale.amountDue}');
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SalePaymentScreen(
+                          saleId: sale.id,
+                          invoiceNumber: sale.invoiceNumber,
+                          buyerName: sale.buyerName,
+                          totalAmount: displayAmount,
+                          amountDue: sale.amountDue,
+                        ),
+                      ),
+                    );
+                    debugPrint('🔵 Payment screen returned with result: $result');
+                    if (result == true) {
+                      debugPrint('🔵 Refreshing sales list after payment');
+                      _loadSales(reset: true); // refresh list after payment
+                    }
+                  },
+                  icon: const Icon(Icons.payments_rounded, size: 16),
+                  label: Text(
+                    'Pay ${_formatCurrency(sale.amountDue)} Due',
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+            ],
+          ],  ),
       ),
     );
   }
@@ -575,6 +645,7 @@ class _SalesListScreenState extends State<SalesListScreen> {
   }
 
   Widget _buildErrorWidget() {
+    debugPrint('🔵 Building error widget: $_error');
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -591,7 +662,10 @@ class _SalesListScreenState extends State<SalesListScreen> {
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () => _loadSales(reset: true),
+              onPressed: () {
+                debugPrint('🔵 Retry button pressed');
+                _loadSales(reset: true);
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
@@ -607,6 +681,7 @@ class _SalesListScreenState extends State<SalesListScreen> {
   }
 
   Widget _buildEmptyWidget() {
+    debugPrint('🔵 Building empty widget - no sales found');
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
