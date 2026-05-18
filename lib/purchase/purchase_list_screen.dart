@@ -1,6 +1,5 @@
 
 import 'package:agr_market/payment/add_payment_screen.dart';
-import 'package:agr_market/payment/Allpayment_screen.dart';
 import 'package:agr_market/payment/payment_screen.dart';
 import 'package:agr_market/providers/language_provider.dart';
 import 'package:agr_market/purchase/purchase_screen.dart';

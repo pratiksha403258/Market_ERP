@@ -168,6 +168,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
+
   void _snack(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg,
@@ -270,31 +271,39 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           '₹${widget.amountPaid.toStringAsFixed(2)}',
                           valueColor: AppColors.success),
                       const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: AppColors.warningSurface,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Remaining Due',
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    fontFamily: 'Poppins',
-                                    color: AppColors.warning)),
-                            Text('₹${widget.amountDue.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    fontFamily: 'Poppins',
-                                    color: AppColors.warning)),
-                          ],
-                        ),
-                      ),
+                     Container(
+  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+  decoration: BoxDecoration(
+    color: AppColors.warningSurface,
+    borderRadius: BorderRadius.circular(10),
+  ),
+  child: Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      const Text(
+        'Remaining Due',
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          fontFamily: 'Poppins',
+          color: AppColors.warning,
+        ),
+      ),
+      Flexible(                             // ← wrap with Flexible
+        child: Text(
+          '₹${widget.amountDue.toStringAsFixed(2)}',
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            fontFamily: 'Poppins',
+            color: AppColors.warning,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    ],
+  ),
+),
                     ]),
                   ),
 
@@ -670,7 +679,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                 color: Colors.white24),
                             _isFullPayment
                                 ? _paymentPreviewItem('Status',
-                                    '✅ FULLY PAID', Colors.greenAccent)
+                                    ' FULLY PAID', Colors.greenAccent)
                                 : _paymentPreviewItem(
                                     'Remaining Due',
                                     '₹${_remainingDue.toStringAsFixed(2)}',
@@ -776,21 +785,30 @@ class _PaymentScreenState extends State<PaymentScreen> {
           color: AppColors.textPrimary));
 
   Widget _infoRow(String label, String value, {Color? valueColor}) => Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontFamily: 'Poppins',
-                  color: AppColors.textSecondary)),
-          Text(value,
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'Poppins',
-                  color: valueColor ?? AppColors.textPrimary)),
-        ],
-      );
+  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  children: [
+    Text(
+      label,
+      style: const TextStyle(
+        fontSize: 13,
+        fontFamily: 'Poppins',
+        color: AppColors.textSecondary,
+      ),
+    ),
+    Flexible(                              // ← wrap with Flexible
+      child: Text(
+        value,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          fontFamily: 'Poppins',
+          color: valueColor ?? AppColors.textPrimary,
+        ),
+        overflow: TextOverflow.ellipsis,   // ← fallback
+      ),
+    ),
+  ],
+);
 
   Widget _quickAmtBtn(String label, double amount) {
     final canUse = amount <= widget.amountDue + 0.01;
@@ -814,16 +832,18 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     : AppColors.border),
           ),
           child: Text(
-            label == 'Full Due'
-                ? 'Full ₹${widget.amountDue.toStringAsFixed(0)}'
-                : label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-                fontSize: 11,
-                fontFamily: 'Poppins',
-                fontWeight: FontWeight.w600,
-                color: canUse ? AppColors.primary : AppColors.textHint),
-          ),
+  label == 'Full Due'
+      ? 'Full ₹${widget.amountDue.toStringAsFixed(0)}'
+      : label,
+  textAlign: TextAlign.center,
+  overflow: TextOverflow.ellipsis,           // ← add this
+  style: TextStyle(
+    fontSize: 11,
+    fontFamily: 'Poppins',
+    fontWeight: FontWeight.w600,
+    color: canUse ? AppColors.primary : AppColors.textHint,
+  ),
+),
         ),
       ),
     );

@@ -421,10 +421,10 @@ class _NewPurchaseScreenState extends State<NewPurchaseScreen>
         GestureDetector(onTap: controller.addLine,
           child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 12),
             decoration: BoxDecoration(border: Border.all(color: AppColors.primary, width: 1.5), borderRadius: BorderRadius.circular(12), color: AppColors.primarySurface),
-            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.add_circle_outline_rounded, color: AppColors.primary, size: 18),
-              SizedBox(width: 8),
-              Text('Add Another Product', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 13, fontFamily: 'Poppins')),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(Icons.add_circle_outline_rounded, color: AppColors.primary, size: 18),
+              const SizedBox(width: 8),
+              Text(lang.t('add_another_product'), style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 13, fontFamily: 'Poppins')),
             ]),
           ),
         ),
@@ -432,7 +432,7 @@ class _NewPurchaseScreenState extends State<NewPurchaseScreen>
           const SizedBox(height: 16),
           Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(gradient: AppColors.heroGradient, borderRadius: BorderRadius.circular(12)),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('Gross Total', style: TextStyle(color: Colors.white70, fontSize: 13, fontFamily: 'Poppins')),
+              Text(lang.t('gross_total'), style: const TextStyle(color: Colors.white70, fontSize: 13, fontFamily: 'Poppins')),
               Text('₹${controller.grossTotal.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700, fontFamily: 'Poppins')),
             ]),
           ),
@@ -453,7 +453,7 @@ class _NewPurchaseScreenState extends State<NewPurchaseScreen>
         Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(color: AppColors.primarySurface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('Gross Total', style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontFamily: 'Poppins')),
+            Text( lang.t('gross_total'), style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontFamily: 'Poppins')),
             Text('₹${controller.grossTotal.toStringAsFixed(2)}', style: const TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.w700, fontSize: 14, fontFamily: 'Poppins')),
           ]),
         ),
@@ -486,7 +486,7 @@ class _NewPurchaseScreenState extends State<NewPurchaseScreen>
               child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.error.withOpacity(0.4))),
                 child: controller.isDeleting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: AppColors.error, strokeWidth: 2))
-                    : const Row(children: [Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 16), SizedBox(width: 4), Text('Delete', style: TextStyle(color: AppColors.error, fontSize: 12, fontFamily: 'Poppins', fontWeight: FontWeight.w600))]),
+                    : Row(children: [const Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 16), const SizedBox(width: 4), Text(lang.t('delete_label'), style: const TextStyle(color: AppColors.error, fontSize: 12, fontFamily: 'Poppins', fontWeight: FontWeight.w600))]),
               ),
             ),
         ]),
@@ -503,7 +503,7 @@ class _NewPurchaseScreenState extends State<NewPurchaseScreen>
           ]),
         ),
         const SizedBox(height: 14),
-        const Text('Product Lines', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary, fontFamily: 'Poppins')),
+         Text( lang.t('product_lines'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary, fontFamily: 'Poppins')),
         const SizedBox(height: 8),
         ...controller.lines.map((l) => _SummaryLineRow(line: l, onRateLockToggle: (locked) {
           if (!locked) _confirmUnlockRate(context, controller, l, lang);
@@ -814,27 +814,27 @@ class _ProductLineCardState extends State<_ProductLineCard> {
         const SizedBox(height: 12),
         if (isKg) ...[
           Row(children: [
-            Expanded(child: _inputField(ctrl: _bagsCtrl, label: 'Bags', hint: '0', icon: Icons.inventory_2_outlined, inputType: TextInputType.number, onChanged: (_) => _update())),
+            Expanded(child: _inputField(ctrl: _bagsCtrl, label:  lang.t('bags'), hint: '0', icon: Icons.inventory_2_outlined, inputType: TextInputType.number, onChanged: (_) => _update())),
             const SizedBox(width: 10),
-            Expanded(child: _inputField(ctrl: _weightCtrl, label: 'kg / Bag', hint: '0.0', icon: Icons.scale_outlined, inputType: TextInputType.number, onChanged: (_) => _update())),
+            Expanded(child: _inputField(ctrl: _weightCtrl, label: lang.t('kg_per_bag'), hint: '0.0', icon: Icons.scale_outlined, inputType: TextInputType.number, onChanged: (_) => _update())),
           ]),
           const SizedBox(height: 8),
           if ((double.tryParse(_bagsCtrl.text) ?? 0) > 0 && (double.tryParse(_weightCtrl.text) ?? 0) > 0)
             Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: AppColors.primarySurface, borderRadius: BorderRadius.circular(8)),
-              child: Text('Gross qty: ${widget.line.grossQty.toStringAsFixed(2)} kg', style: const TextStyle(color: AppColors.primaryDark, fontSize: 12, fontFamily: 'Poppins', fontWeight: FontWeight.w500))),
+              child: Text('${lang.t('gross_qty')}:${widget.line.grossQty.toStringAsFixed(2)} kg', style: const TextStyle(color: AppColors.primaryDark, fontSize: 12, fontFamily: 'Poppins', fontWeight: FontWeight.w500))),
         ] else if (!isFlat) ...[
           _inputField(ctrl: _qtyCtrl, label: 'Quantity (${widget.line.unit})', hint: '0', icon: Icons.straighten_outlined, inputType: TextInputType.number, onChanged: (_) => _update()),
         ],
         if (!isFlat) ...[
           const SizedBox(height: 10),
-          _inputField(ctrl: _qualCtrl, label: 'Quality Deduction (${widget.line.unit})', hint: '0', icon: Icons.remove_circle_outline, inputType: TextInputType.number, onChanged: (_) => _update()),
+          _inputField(ctrl: _qualCtrl, label: '${lang.t('quality_deduction')} (${widget.line.unit})', hint: '0', icon: Icons.remove_circle_outline, inputType: TextInputType.number, onChanged: (_) => _update()),
         ],
         const SizedBox(height: 10),
-        _inputField(ctrl: _rateCtrl, label: isFlat ? 'Fixed Price (₹) *' : 'Rate per ${widget.line.unit} (₹) *', hint: '0.00', icon: Icons.currency_rupee_rounded, inputType: TextInputType.number, onChanged: (_) => _update()),
+        _inputField(ctrl: _rateCtrl, label: isFlat ?  lang.t('fixed_price_label') : '${lang.t('rate_per_unit')}${widget.line.unit} (₹) *', hint: '0.00', icon: Icons.currency_rupee_rounded, inputType: TextInputType.number, onChanged: (_) => _update()),
         if (widget.line.lineTotal > 0) ...[
           const SizedBox(height: 10),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('Line Total', style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontFamily: 'Poppins')),
+             Text( lang.t('line_total'), style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontFamily: 'Poppins')),
             Text('₹${widget.line.lineTotal.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primaryDark, fontFamily: 'Poppins')),
           ]),
         ],
@@ -892,10 +892,17 @@ class _DeductionFieldState extends State<_DeductionField> {
 
 // ── Commission Field ──────────────────────────────────────────
 class _CommissionField extends StatelessWidget {
-  final double value; final String type; final double grossTotal;
+  final double value;
+   final String type; final double grossTotal;
   final ValueChanged<double> onValueChanged; final ValueChanged<String> onTypeChanged;
   const _CommissionField({required this.value, required this.type, required this.grossTotal, required this.onValueChanged, required this.onTypeChanged});
-  @override Widget build(BuildContext context) {
+ 
+  @override
+   Widget build(
+    BuildContext context
+    ) 
+    {
+     final lang = Provider.of<LanguageProvider>(context);
     final commAmt = type == 'percent' ? (value / 100) * grossTotal : value;
     final ctrl = TextEditingController(text: value > 0 ? value.toStringAsFixed(type == 'percent' ? 1 : 2) : '');
     return Padding(padding: const EdgeInsets.only(bottom: 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -934,13 +941,46 @@ class _CommissionField extends StatelessWidget {
 class _FinalPayableCard extends StatelessWidget {
   final double grossTotal; final double totalDeductions; final double finalPayable;
   const _FinalPayableCard({required this.grossTotal, required this.totalDeductions, required this.finalPayable});
-  @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(gradient: AppColors.heroGradient, borderRadius: BorderRadius.circular(16)),
-    child: Column(children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Gross Total', style: TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Poppins')), Text('₹${grossTotal.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 14, fontFamily: 'Poppins', fontWeight: FontWeight.w600))]),
+  
+  get lang => null;
+  @override 
+  Widget build(
+    
+    BuildContext context
+    ) => Container(
+     
+      padding: const EdgeInsets.all(16),
+       decoration: BoxDecoration(
+        gradient: AppColors.heroGradient,
+         borderRadius: BorderRadius.circular(16)
+         ),
+    child: Column(
+      children: [
+      Row(
+        mainAxisAlignment: 
+        MainAxisAlignment.spaceBetween,
+         children: [
+          Text(lang.t('gross_total'), 
+          style: TextStyle(
+            color: Colors.white70, 
+            fontSize: 12, 
+            fontFamily: 'Poppins'
+            )), Text(
+              '₹${grossTotal.toStringAsFixed(2)
+              }', 
+              style: const TextStyle(
+                color: Colors.white,
+                 fontSize: 14, 
+                 fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w600
+                  )
+                )
+              ]
+            ),
       const SizedBox(height: 4),
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Total Deductions', style: TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Poppins')), Text('- ₹${totalDeductions.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white70, fontSize: 14, fontFamily: 'Poppins', fontWeight: FontWeight.w600))]),
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(lang.t('total_deductions'), style: const TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Poppins')), Text('- ₹${totalDeductions.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white70, fontSize: 14, fontFamily: 'Poppins', fontWeight: FontWeight.w600))]),
       const SizedBox(height: 8), const Divider(color: Colors.white30), const SizedBox(height: 6),
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Final Payable', style: TextStyle(color: Colors.white, fontSize: 15, fontFamily: 'Poppins', fontWeight: FontWeight.w600)), Text('₹${finalPayable.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 22, fontFamily: 'Poppins', fontWeight: FontWeight.w700))]),
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(lang.t('final_payable'), style: const TextStyle(color: Colors.white, fontSize: 15, fontFamily: 'Poppins', fontWeight: FontWeight.w600)), Text('₹${finalPayable.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 22, fontFamily: 'Poppins', fontWeight: FontWeight.w700))]),
     ]),
   );
 }
@@ -949,7 +989,17 @@ class _FinalPayableCard extends StatelessWidget {
 class _SummaryLineRow extends StatelessWidget {
   final PurchaseLine line; final ValueChanged<bool> onRateLockToggle;
   const _SummaryLineRow({required this.line, required this.onRateLockToggle});
-  @override Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(12),
+ 
+  @override
+   Widget build(
+    
+    BuildContext context
+    
+    ) => Container(
+      margin: const EdgeInsets.only(
+        bottom: 10), 
+        padding: const EdgeInsets.all(12
+        ),
     decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [

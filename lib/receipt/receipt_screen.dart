@@ -12,7 +12,6 @@ import '../../../core/constants/colors.dart';
 import '../../../providers/language_provider.dart';
 import '../../../services/dio_client.dart';
 import '../../../services/constant_service.dart';
-import '../payment/Allpayment_screen.dart';
 
 // ─────────────────────────────────────────────────────────────
 //  RECEIPT SCREEN
@@ -159,7 +158,7 @@ class _ReceiptScreenState extends State<ReceiptScreen>
     
     // Translations for PDF (matching UI)
     final Map<String, String> englishTranslations = {
-      'purchase_receipt': 'PURCHASE RECEIPT',
+      'purchase_receipt':  lang.t('purchase_receipt').toUpperCase(),
       'prop_label': 'Prop.',
       'date_label': 'Date:',
       'farmer_label': 'Farmer Name:',
@@ -740,7 +739,7 @@ class _ReceiptScreenState extends State<ReceiptScreen>
     if (_receipt == null) return;
     final amountDue = (_receipt!['amountDue'] as num?)?.toDouble() ?? 0;
     if (amountDue <= 0) {
-      _snack('This purchase is fully paid', success: true);
+      _snack(lang.t('fully_paid'), success: true);
       return;
     }
     final farmer = _receipt!['farmer'] as Map<String, dynamic>? ?? {};
@@ -768,17 +767,17 @@ class _ReceiptScreenState extends State<ReceiptScreen>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(
+      builder: (_) => Center(
         child: Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 14),
-                Text('Generating PDF…', style: TextStyle(fontFamily: 'Poppins', fontSize: 13)),
+                const CircularProgressIndicator(),
+                const SizedBox(height: 14),
+                Text(lang.t('generating_pdf'), style: const TextStyle(fontFamily: 'Poppins', fontSize: 13)),
               ],
             ),
           ),
@@ -802,7 +801,7 @@ class _ReceiptScreenState extends State<ReceiptScreen>
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
-        _snack('Failed to generate PDF: $e');
+        _snack('${lang.t('failed_pdf')}: $e');
       }
     }
   }
@@ -892,7 +891,7 @@ class _ReceiptScreenState extends State<ReceiptScreen>
       buf.writeln('━━━━━━━━━━━━━━━━━━━━');
       buf.writeln('*FINAL PAYABLE: ₹${finalPayable.toStringAsFixed(2)}*');
       if (amountPaid > 0) buf.writeln('Paid: ₹${amountPaid.toStringAsFixed(2)}');
-      buf.writeln(amountDue > 0 ? '*Balance Due: ₹${amountDue.toStringAsFixed(2)}*' : '✅ FULLY PAID');
+      buf.writeln(amountDue > 0 ? '*Balance Due: ₹${amountDue.toStringAsFixed(2)}*' : 'FULLY PAID');
       buf.writeln('━━━━━━━━━━━━━━━━━━━━');
       buf.writeln('Thank you for your business!');
       return buf.toString();
@@ -990,12 +989,12 @@ class _ReceiptScreenState extends State<ReceiptScreen>
     );
   }
 
-  Widget _buildLoading(LanguageProvider lang) => const Center(
+  Widget _buildLoading(LanguageProvider lang) => Center(
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          CircularProgressIndicator(color: AppColors.primary),
-          SizedBox(height: 16),
-          Text('Loading receipt…',
-              style: TextStyle(fontFamily: 'Poppins', fontSize: 14, color: AppColors.textSecondary)),
+          const CircularProgressIndicator(color: AppColors.primary),
+          const SizedBox(height: 16),
+          Text( lang.t('loading_receipt'),
+              style: const TextStyle(fontFamily: 'Poppins', fontSize: 14, color: AppColors.textSecondary)),
         ]),
       );
 
@@ -1005,11 +1004,11 @@ class _ReceiptScreenState extends State<ReceiptScreen>
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             const Icon(Icons.receipt_long_outlined, size: 56, color: AppColors.textHint),
             const SizedBox(height: 16),
-            const Text('Purchase saved successfully!',
+            Text(lang.t('purchase_saved_message'),
                 style: TextStyle(fontFamily: 'Poppins', fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.success),
                 textAlign: TextAlign.center),
             const SizedBox(height: 8),
-            Text('Receipt could not be loaded: $_error',
+            Text('${lang.t('receipt_not_loadable')}: $_error',
                 style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, color: AppColors.textSecondary),
                 textAlign: TextAlign.center),
             const SizedBox(height: 28),
@@ -1019,7 +1018,7 @@ class _ReceiptScreenState extends State<ReceiptScreen>
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-              child: const Text('Retry', style: TextStyle(fontFamily: 'Poppins')),
+              child: Text(lang.t('retry'), style: TextStyle(fontFamily: 'Poppins')),
             ),
           ]),
         ),
@@ -1214,6 +1213,8 @@ class _ReceiptScreenState extends State<ReceiptScreen>
     if (_receipt == null) return 0;
     return (_receipt!['totalDeductions'] as num?)?.toDouble() ?? 0;
   }
+  
+  get lang => null;
 
   Widget _horizontalDivider() => Container(height: 1, color: _redColor);
 
@@ -1493,10 +1494,15 @@ class _ReceiptScreenState extends State<ReceiptScreen>
 //  PRINT BOTTOM SHEET
 // ─────────────────────────────────────────────────────────────
 class _PrintSheet extends StatelessWidget {
+  
   final Map<String, dynamic>? receipt;
   final VoidCallback onPrint;
+   
 
   const _PrintSheet({this.receipt, required this.onPrint});
+  
+  get lang => null;
+  
 
   @override
   Widget build(BuildContext context) {
@@ -1515,11 +1521,11 @@ class _PrintSheet extends StatelessWidget {
         )),
         const Icon(Icons.print_rounded, size: 40, color: AppColors.primary),
         const SizedBox(height: 12),
-        const Text('Print Receipt',
+        Text(lang.t('print_receipt'),
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary, fontFamily: 'Poppins')),
         const SizedBox(height: 8),
-        const Text(
-          'Make sure your Bluetooth thermal printer is turned on and paired with this device.',
+         Text(
+         lang.t('print_info'),
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontFamily: 'Poppins', height: 1.5),
         ),
@@ -1533,7 +1539,7 @@ class _PrintSheet extends StatelessWidget {
               onPrint();
             },
             icon: const Icon(Icons.print_rounded, size: 18),
-            label: const Text('Print',
+            label:  Text( lang.t('print'),
                 style: TextStyle(fontFamily: 'Poppins', fontSize: 14, fontWeight: FontWeight.w600)),
             style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
@@ -1545,7 +1551,7 @@ class _PrintSheet extends StatelessWidget {
         const SizedBox(height: 10),
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel', style: TextStyle(fontFamily: 'Poppins', color: AppColors.textSecondary)),
+          child: Text(lang.t('cancel'), style: TextStyle(fontFamily: 'Poppins', color: AppColors.textSecondary)),
         ),
       ]),
     );
